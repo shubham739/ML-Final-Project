@@ -1,0 +1,12 @@
+{
+  "vocab_size": 1024,
+  "model_type": "BPE",
+  "library": "sentencepiece",
+  "model_file": "/Users/shubhamtanwar/Desktop/ML-Final-Project/tokenizer/svg_bpe.model",
+  "special_tokens": {
+    "<pad>": 0,
+    "<bos>": 1,
+    "<eos>": 2,
+    "<unk>": 3
+  }
+}
