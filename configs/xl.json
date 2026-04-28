@@ -1,0 +1,11 @@
+{
+  "name": "xl",
+  "vocab_size": 1024,
+  "block_size": 1024,
+  "d_model": 768,
+  "n_layers": 12,
+  "n_heads": 12,
+  "d_ff": 3072,
+  "dropout": 0.1,
+  "bias": false
+}

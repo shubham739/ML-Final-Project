@@ -1,0 +1,165 @@
+"""
+Task 2.2 — Learning Rate Sweep on the Tiny model.
+
+Trains the Tiny model at 7 learning rates and plots val loss vs LR.
+
+Usage:
+    python scripts/lr_sweep.py                        # full epoch per LR (~3-4 hrs)
+    python scripts/lr_sweep.py --sweep_fraction 0.2   # 20% of epoch (~45 min)
+
+Outputs:
+    outputs/plots/lr_sweep.png
+    outputs/results/lr_sweep_results.json
+"""
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from scripts.train import train_model
+
+
+LEARNING_RATES = [1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2]
+
+
+def run_sweep(
+    config_path: str = "configs/tiny.json",
+    data_dir: str = "data/tokenized",
+    output_dir: str = "outputs",
+    sweep_fraction: float = 1.0,
+    device: str = None,
+    seed: int = 42,
+) -> dict:
+    """
+    Train Tiny model at each LR. Returns {lr: val_loss} dict.
+
+    sweep_fraction < 1.0 limits steps to that fraction of a full epoch —
+    useful when time is tight. Results are still indicative of the best LR.
+    """
+    print("\n" + "=" * 60)
+    print("LR SWEEP  —  Task 2.2")
+    print(f"Config : {config_path}")
+    print(f"LRs    : {LEARNING_RATES}")
+    print(f"Fraction of epoch: {sweep_fraction:.0%}")
+    print("=" * 60)
+
+    # Compute max_steps for the fraction
+    max_steps_for_fraction = None
+    if sweep_fraction < 1.0:
+        # Full epoch ≈ 101.7M tokens / 65536 = 1551 steps
+        full_steps = 1551
+        max_steps_for_fraction = max(50, int(full_steps * sweep_fraction))
+        print(f"Using max_steps={max_steps_for_fraction} per LR trial "
+              f"(out of ~{full_steps} full-epoch steps)")
+
+    results = {}
+    for lr in LEARNING_RATES:
+        lr_tag = f"{lr:.0e}".replace("-0", "-")
+        print(f"\n--- LR = {lr:.0e} ---")
+        try:
+            r = train_model(
+                config_path=config_path,
+                lr=lr,
+                data_dir=data_dir,
+                output_dir=output_dir,
+                seed=seed,
+                eval_interval=50,
+                device_str=device,
+                max_steps=max_steps_for_fraction,
+                save_checkpoint=False,
+            )
+            results[lr] = r["val_loss"]
+            print(f"  → val_loss = {r['val_loss']:.4f}")
+        except Exception as e:
+            print(f"  → FAILED: {e}")
+            results[lr] = float("nan")
+
+    return results
+
+
+def plot_lr_sweep(results: dict, output_dir: str) -> str:
+    lrs   = sorted(results.keys())
+    vals  = [results[lr] for lr in lrs]
+    valid = [(lr, v) for lr, v in zip(lrs, vals) if not np.isnan(v)]
+
+    best_lr, best_val = min(valid, key=lambda x: x[1]) if valid else (None, None)
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.semilogx(lrs, vals, "o-", color="steelblue", linewidth=2, markersize=7,
+                label="val loss")
+
+    if best_lr is not None:
+        ax.axvline(best_lr, color="tomato", linestyle="--", linewidth=1.5,
+                   label=f"best LR = {best_lr:.0e}  (val={best_val:.4f})")
+
+    ax.set_xlabel("Learning Rate (log scale)", fontsize=12)
+    ax.set_ylabel("Validation Loss", fontsize=12)
+    ax.set_title("LR Sweep — Tiny Model (Task 2.2)", fontsize=13)
+    ax.legend(fontsize=10)
+    ax.grid(True, which="both", alpha=0.3)
+
+    out_path = Path(output_dir) / "plots" / "lr_sweep.png"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"\nPlot saved: {out_path}")
+    return str(out_path)
+
+
+def main():
+    p = argparse.ArgumentParser(description="LR sweep on the Tiny model (Task 2.2).")
+    p.add_argument("--config",   default="configs/tiny.json")
+    p.add_argument("--data_dir", default="data/tokenized")
+    p.add_argument("--output_dir", default="outputs")
+    p.add_argument("--sweep_fraction", type=float, default=1.0,
+                   help="Fraction of full epoch to run per LR (0.2 = fast sweep)")
+    p.add_argument("--device", default=None)
+    p.add_argument("--seed", type=int, default=42)
+    args = p.parse_args()
+
+    results = run_sweep(
+        config_path=args.config,
+        data_dir=args.data_dir,
+        output_dir=args.output_dir,
+        sweep_fraction=args.sweep_fraction,
+        device=args.device,
+        seed=args.seed,
+    )
+
+    # Save raw results
+    res_path = Path(args.output_dir) / "results" / "lr_sweep_results.json"
+    res_path.parent.mkdir(parents=True, exist_ok=True)
+    serializable = {f"{k:.2e}": v for k, v in results.items()}
+    with open(res_path, "w") as f:
+        json.dump(serializable, f, indent=2)
+    print(f"Results saved: {res_path}")
+
+    # Plot
+    plot_lr_sweep(results, args.output_dir)
+
+    # Summary
+    valid = [(lr, v) for lr, v in results.items() if not np.isnan(v)]
+    if valid:
+        best_lr, best_val = min(valid, key=lambda x: x[1])
+        print("\n" + "=" * 60)
+        print(f"BEST LR: {best_lr:.2e}  (val_loss = {best_val:.4f})")
+        print(f"Use this LR for all model sizes in Task 2.3:")
+        print(f"  python scripts/train.py --config configs/tiny.json --lr {best_lr:.2e}")
+        print(f"  python scripts/train.py --config configs/small.json --lr {best_lr:.2e}")
+        print(f"  python scripts/train.py --config configs/medium.json --lr {best_lr:.2e}")
+        print(f"  python scripts/train.py --config configs/large.json --lr {best_lr:.2e}")
+        print(f"  python scripts/train.py --config configs/xl.json --lr {best_lr:.2e}")
+        print("=" * 60)
+
+    return results
+
+
+if __name__ == "__main__":
+    main()

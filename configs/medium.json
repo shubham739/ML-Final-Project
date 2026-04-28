@@ -1,0 +1,11 @@
+{
+  "name": "medium",
+  "vocab_size": 1024,
+  "block_size": 1024,
+  "d_model": 384,
+  "n_layers": 6,
+  "n_heads": 6,
+  "d_ff": 1536,
+  "dropout": 0.1,
+  "bias": false
+}

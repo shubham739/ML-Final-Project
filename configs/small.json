@@ -1,0 +1,11 @@
+{
+  "name": "small",
+  "vocab_size": 1024,
+  "block_size": 1024,
+  "d_model": 192,
+  "n_layers": 6,
+  "n_heads": 6,
+  "d_ff": 768,
+  "dropout": 0.1,
+  "bias": false
+}
