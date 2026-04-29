@@ -54,8 +54,7 @@ def get_lr(step: int, warmup_steps: int, total_steps: int,
 
 def load_data(path: str) -> np.ndarray:
     """Load tokenized split into RAM for fast random access."""
-    data = np.memmap(path, dtype="uint16", mode="r")
-    return np.array(data)  # copy into RAM
+    return np.array(np.load(path, mmap_mode="r"))  # np.load handles .npy header; raw memmap skips it
 
 
 def get_batch(data: np.ndarray, block_size: int, batch_size: int,
