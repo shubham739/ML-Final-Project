@@ -19,3 +19,6 @@ Pillow>=10.0.0
 
 # Utilities
 tqdm>=4.65.0
+
+# Maximal Update Parameterization (Part 3)
+mup
