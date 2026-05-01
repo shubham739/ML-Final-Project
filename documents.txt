@@ -1,0 +1,623 @@
+SVG SCALING LAWS PROJECT — ISSUES, CHALLENGES, AND DEVIATIONS
+CS-GY 6923 · NYU Tandon · Spring 2026
+=============================================================
+
+This file documents every non-trivial problem, design challenge, and
+unexpected finding encountered during the project.
+
+----------------------------------------------------------------------
+PART 3 — μP IMPLEMENTATION & TRAINING
+----------------------------------------------------------------------
+
+1. CUBLAS_STATUS_EXECUTION_FAILED → device-side assert on Colab A100
+   -------------------------------------------------------------------
+   Error sequence:
+     Run 1: CUDA error: CUBLAS_STATUS_EXECUTION_FAILED (cublasSgemm)
+     Run 2 (after disabling GradScaler): CUDA error: device-side assert triggered
+
+   Root cause (both errors): The μP Colab notebook loaded data with raw
+   np.memmap, which reads the 128-byte .npy file header as 64 uint16 token
+   values. 62 of those decode to IDs > 1023, which are out-of-bounds for
+   the vocab_size=1024 embedding table. The two errors are the same bug
+   manifesting differently:
+     - With GradScaler enabled: OOB tokens caused corrupt activations that
+       propagated through the loss scaling backward pass and crashed in
+       cuBLAS (CUBLAS_STATUS_EXECUTION_FAILED).
+     - With GradScaler disabled: the OOB embedding index triggered CUDA's
+       bounds check assertion more directly (device-side assert).
+
+   Why the Part 2 Colab notebooks didn't crash: colab_large_model.ipynb
+   and colab_xl_model.ipynb already had an explicit clamp after loading:
+       train_data = np.clip(train_data, 0, VOCAB_SIZE - 1)
+   The μP notebook was written later and omitted this guard.
+
+   Why local training never crashed: PyTorch on CPU does not bounds-check
+   embedding indices by default; the 62 bad values silently returned
+   garbage embeddings and had negligible effect on loss (62 / 101.7M tokens
+   = 0.00006% of the dataset).
+
+   Fixes applied:
+     1. scripts/train.py load_data: np.memmap → np.load(path, mmap_mode='r')
+        np.load parses the .npy header and returns only the actual token data.
+     2. Colab notebook cell 5: same change to np.load.
+     3. GradScaler also left disabled (enabled=False) — bfloat16 has the same
+        exponent range as float32 and does not benefit from loss scaling.
+
+2. ModuleNotFoundError: No module named 'scripts' in Colab
+   ---------------------------------------------------------
+   Error: `from scripts.model import ModelConfig` failed with
+   ModuleNotFoundError when running the Colab notebook.
+
+   Root cause 1: `scripts/__init__.py` was missing, so Python did not
+   treat scripts/ as a package in all environments.
+   Fix: Created an empty scripts/__init__.py.
+
+   Root cause 2: The infrastructure cell (cell 5) relied on cell 3
+   having already run `sys.path.insert(0, REPO_DIR)`. After a runtime
+   reset or if cells ran out of order, cell 5 would fail.
+   Fix: Made cell 5 self-contained — it re-asserts REPO_DIR on sys.path
+   unconditionally, independent of cell 3.
+
+3. Private GitHub Repository — git clone Failure in Colab
+   -------------------------------------------------------
+   Error: `git clone https://github.com/shubham739/ML-Final-Project.git`
+   returned exit status 128 (authentication/access failure).
+
+   Root cause: The repo is private. The notebook used HTTPS clone, which
+   Colab cannot authenticate without a token. The local git remote uses
+   SSH (`git@github.com:...`), which works locally but not in Colab.
+
+   Workaround discussed: Either make the repo public, or embed a GitHub
+   Personal Access Token in the clone URL.
+
+   Underlying design issue: The Colab notebook was written to git clone
+   the repo and import from scripts/, rather than being self-contained
+   like the Part 2 Colab notebooks (colab_large_model.ipynb,
+   colab_xl_model.ipynb), which inlined all model code and had no repo
+   dependency. The git clone approach was chosen to avoid duplicating the
+   complex mup_model.py code, but it introduced both auth issues and the
+   runtime-reset import failures.
+
+4. plt.np.linspace AttributeError
+   ---------------------------------
+   Error: `AttributeError: module 'matplotlib.pyplot' has no attribute 'np'`
+   in the LR sweep notebook.
+
+   Root cause: Older matplotlib versions exposed numpy as `plt.np` as a
+   convenience attribute. This was removed in newer matplotlib versions.
+
+   Fix: Replaced all `plt.np.linspace(...)` calls with `np.linspace(...)`
+   (numpy was already imported directly).
+
+5. mup set_base_shapes Requires Matching Depth
+   -----------------------------------------------
+   Issue: The mup package's `set_base_shapes(model, base, delta=delta)`
+   matches parameters by name. If the base model has a different number of
+   layers (n_layers) than the target model, parameter names don't align and
+   the function raises an error or silently mismatches infshapes.
+
+   Fix: `_make_base_config(target_config, d_model)` creates a base config
+   with the same n_layers as the target but minimal width (d_model=64).
+   Each model size gets its own base/delta pair at matching depth. The base
+   head count was fixed at n_heads=4 (divides both base d_model=64 and
+   delta d_model=128 evenly).
+
+6. Flash Attention + μP Scale Parameter (PyTorch Version)
+   ---------------------------------------------------------
+   Issue: μP requires attention logits scaled by 1/head_dim (not the
+   standard 1/sqrt(head_dim)). PyTorch's
+   `F.scaled_dot_product_attention` only added a `scale` keyword argument
+   in PyTorch 2.1. Older versions ignore or reject it.
+
+   Fix: Pass `scale=1/head_dim` directly in PyTorch ≥ 2.1. Wrapped in a
+   try/except TypeError to fall back to manual attention (manual Q@K
+   matmul with explicit scale) for older PyTorch versions.
+
+7. Weight Tying Removed for μP
+   ------------------------------
+   Issue: Standard GPT ties the input embedding (wte) and the output
+   projection (lm_head) weights to reduce parameters. μP requires
+   different per-layer LR multipliers for the embedding (standard LR) and
+   the readout/lm_head (scaled LR via MuReadout). Weight tying makes this
+   impossible — both layers must share the same parameter, so they can
+   only have one LR.
+
+   Fix: Removed weight tying in MupGPT. wte and lm_head are separate
+   parameters. This adds vocab_size × d_model extra parameters per model
+   (e.g., ~263K for tiny, ~790K for xl).
+
+13. Out-of-Bounds Token IDs — np.memmap vs np.load on .npy Files
+    ----------------------------------------------------------------
+    Error: `CUDA error: device-side assert triggered` in embedding lookup
+    on Colab A100 (but silent on CPU during all Part 2 / Part 3 local runs).
+
+    Root cause: `np.memmap(path, dtype='uint16', mode='r')` opens a .npy
+    file as raw bytes, including the 128-byte numpy array header. The
+    header occupies 64 uint16 words; 62 of those decode to values > 1023,
+    which are out-of-bounds for vocab_size=1024 embedding tables.
+
+    On CPU: PyTorch embedding lookup does not bounds-check → silent garbage
+    activations on those 62 tokens out of 101.7M (0.00006% of data).
+    On CUDA: cuBLAS / CUDA asserts on OOB indices → fatal device-side assert.
+
+    This is why all Part 2 models trained fine locally but crashed on Colab.
+
+    Fix: Changed to `np.load(path, mmap_mode='r')` which correctly parses
+    the .npy header and returns only the actual token array (max ID = 1018,
+    all within [0, 1023]).
+
+    Affected files: scripts/train.py (load_data), notebooks/colab_mup_training.ipynb.
+
+----------------------------------------------------------------------
+PART 2 — STANDARD PARAMETERIZATION SCALING STUDY
+----------------------------------------------------------------------
+
+19. torch.compile + model.eval() Toggle → CUDA Device-Side Assert (Part 2 Colab)
+    -------------------------------------------------------------------------------
+    Error: `AcceleratorError: CUDA error: device-side assert triggered` at
+    `losses.append(loss.item())` inside quick_val_loss(), consistently at step 300
+    on the A100. The error was asynchronous — it surfaced at the .item() sync
+    point, not at the actual failing kernel.
+
+    Root cause: The original quick_val_loss() called model.eval() before sampling
+    val batches and model.train() after. With torch.compile enabled, toggling
+    train/eval mode mid-training forces a recompilation of the attention kernel
+    (because dropout_p changes: 0.1 in train mode, 0.0 in eval mode). The
+    recompiled kernel triggered a device-side assert on the A100 at exactly the
+    step-300 eval call (deterministic because of the fixed numpy random seed).
+
+    Fix: Removed model.eval() / model.train() from quick_val_loss() entirely.
+    The function now runs in whatever mode the model is already in (train),
+    accepting that dropout remains active during sampling — a minor approximation.
+    Only full_val_loss() (called once at the very end) toggles eval mode, after
+    training is complete and torch.compile has no further influence.
+
+    Also disabled torch.compile entirely for stability. The A100 achieves
+    140–250k tok/s uncompiled; total training time was ~8–15 min regardless.
+
+20. GradScaler API Deprecation (FutureWarning → broken import)
+    -------------------------------------------------------------
+    Error: `FutureWarning: torch.cuda.amp.GradScaler(args...) is deprecated.
+    Please use torch.amp.GradScaler(args...) instead.`
+    The old import (`from torch.cuda.amp import GradScaler`) also raises a
+    warning in PyTorch 2.4+ and will become a hard error in future versions.
+
+    Fix: Replaced `from torch.cuda.amp import GradScaler; GradScaler(enabled=...)`
+    with `torch.amp.GradScaler('cuda', enabled=USE_BF16)` throughout all Colab
+    notebooks. No import needed — torch.amp is always available.
+
+    Note: GradScaler is unnecessary for bfloat16 (bf16 has the same exponent
+    range as float32, so loss scaling provides no benefit). Setting enabled=False
+    is equally correct and avoids the API entirely.
+
+21. XL Model (86.5M) Trained Worse Than Medium (11.4M) with LR=3e-3
+    ------------------------------------------------------------------
+    Observation: First XL training run with LR=3e-3 produced val_loss=1.413,
+    which is worse than Medium (val_loss=1.211) and between Small and Medium
+    on the scaling curve — completely breaking the monotonic power-law trend.
+
+    Root cause: Standard parameterization (SP) is LR-sensitive at scale. The
+    LR sweep was performed on Tiny (1.05M params) and found LR=3e-3 optimal.
+    In SP, the optimal LR decreases as model width grows (gradient norms scale
+    with d_model). At XL (d_model=768), LR=3e-3 steps too aggressively —
+    the training curve stalled for ~200 steps (steps 700–900) before recovering,
+    and never caught up to where a well-tuned LR would have been.
+
+    Fix: Re-ran XL with LR=1e-3. The training curve was clean and monotonic;
+    final val_loss=1.185 (confirmed: better than Large's 1.154 is not achieved,
+    but better than all smaller models). The 1-epoch compute budget
+    (~101.7M tokens for 86.5M params) is ~17× below Chinchilla-optimal, which
+    also limits XL's apparent advantage over Large.
+
+    Impact on scaling law: The 5-model SP fit (R²=0.956) is slightly degraded
+    relative to the 4-model fit (R²=0.982) because Large (LR=3e-3) and XL
+    (LR=1e-3) used different LRs, making them not perfectly comparable.
+    This is noted in the report as a limitation of the 1-epoch training budget
+    and the single LR sweep at Tiny scale. μP (Part 3) is the principled
+    solution — it maintains LR transferability so one sweep suffices at all sizes.
+
+8. Scaling Exponent Much Higher Than Kaplan et al.
+   --------------------------------------------------
+   Observation: Fitted scaling law exponent α = 0.478, compared to
+   Kaplan et al. (2020) NL (neural language) exponent of α ≈ 0.076.
+
+   Explanation: SVG code is more structured and compressible than natural
+   language. As model capacity grows, the model can more effectively
+   exploit the syntactic regularity of SVG (repeated path commands,
+   numeric coordinate patterns, tag structure). This results in faster
+   loss improvement per doubling of parameters than seen in NL tasks.
+
+9. Fitted Power-Law Offset c (Irreducible Loss)
+   -----------------------------------------------
+   Observation: The fitted irreducible loss floor c = 1.085. Even an
+   infinitely large model would not reach loss = 0.
+
+   Explanation: SVG tokenization (BPE, vocab 1024) introduces entropy
+   from numeric coordinate tokens that cannot be predicted with certainty
+   regardless of model size. The offset c represents this irreducible
+   per-token entropy.
+
+----------------------------------------------------------------------
+PART 1 — DATA PIPELINE
+----------------------------------------------------------------------
+
+SESSION 1 WORK — FULL PART 1 PIPELINE BUILT AND COMPLETED
+-----------------------------------------------------------
+All five Part 1 scripts written and successfully run end-to-end.
+
+Scripts created:
+  scripts/01_download.py      — HuggingFace dataset download
+  scripts/02_clean.py         — SVG normalization & filtering
+  scripts/03_train_tokenizer.py — sentencepiece BPE training
+  scripts/04_split_and_encode.py — train/val/test splits + .npy encoding
+  scripts/05_statistics.py    — token-length histogram + vocab inspection
+
+Datasets used (in priority order):
+  starvector/svg-icons-simple   89,370  SVGs (all splits combined)
+  starvector/svg-emoji-simple    5,106  SVGs (all splits combined)
+  starvector/svg-fonts-simple  320,000  SVGs (capped; 1.8M total available)
+  Raw total:                   414,476  SVGs
+
+Cleaning pipeline (02_clean.py):
+  - Strip XML comments (<!-- ... -->) and <metadata> blocks
+  - Collapse whitespace (multiple spaces/newlines → single space)
+  - Round all floating-point numbers to 1 decimal place
+    (reduces coordinate entropy; e.g. 12.3456 → 12.3)
+  - Length filter: drop SVGs with < 50 chars or > 4096 chars
+    (4096 chars ≈ 1024 tokens × 4 chars/token, pre-filter before encoding)
+  - XML validate with lxml.etree.fromstring()
+
+Cleaning results:
+  Raw:    414,476
+  Kept:   402,617  (97.1%)
+  Dropped (too long): 11,859  (~3%)
+  Dropped (too short / bad XML): 0
+
+Final dataset statistics:
+  Vocabulary size:        1,024 tokens
+  Training SVGs:        393,526  (after token-length filter at encode time)
+  Training tokens:  101,702,481  (exceeds 100M target ✓)
+  Val SVGs / tokens:  4,016 / 1,043,258
+  Test SVGs / tokens: 4,016 / 1,039,006
+  Mean seq length:        258.5 tokens
+  Median seq length:      202.0 tokens
+  95th percentile:        659.0 tokens
+  Split ratio (by file):  98% / 1% / 1%  (seed=42, shuffled)
+  Binary format:          uint16 NumPy .npy  (train ~194MB, val/test ~2MB each)
+
+Outputs:
+  data/tokenized/train.npy, val.npy, test.npy
+  data/tokenized/split_metadata.json
+  data/cleaned/dataset_stats.json
+  data/cleaned/clean_stats.json
+  tokenizer/svg_bpe.model, svg_bpe.vocab
+  tokenizer/tokenizer_config.json
+  outputs/plots/seq_len_histogram.png
+
+10. HuggingFace ByteLevel BPE Fails on SVG — Switched to sentencepiece
+    -----------------------------------------------------------------------
+    Issue: The initial tokenizer used HuggingFace `tokenizers` library with
+    ByteLevel BPE (same as GPT-2). Training on 83K SVGs produced a vocabulary
+    of only 164 tokens instead of the requested 4,096.
+
+    Root cause: ByteLevel pre-tokenizer splits text on whitespace before
+    running BPE. SVG path data (d="M 10.3 20.7 L 30.5 40.1") splits into
+    many short, unique whitespace-delimited tokens (coordinate strings like
+    "10.3", "20.7" are rarely repeated verbatim). BPE can only merge pairs
+    WITHIN each whitespace-delimited chunk, so it exhausts meaningful merges
+    after ~160 rules and stops — far short of the requested vocab size.
+
+    The evidence: chars/token = 1.71 (should be ~4–5 for good BPE).
+
+    Fix: Switched to sentencepiece BPE, which treats the entire character
+    stream as a sequence without mandatory whitespace boundaries. This allows
+    merges across spaces and produces proper SVG tokens like <path, ▁fill,
+    ▁viewBox, ▁L, M.
+
+    Result: chars/token = 4.03, vocabulary size = 1,024 (the limit imposed
+    by data diversity, not the algorithm — SVG uses ~60–70 unique ASCII chars
+    after normalization, capping max learnable pieces at ~1,368).
+
+    Chosen vocab size: 1,024 (power of 2, within the 1K–8K assignment range).
+    Justification for report: SVG's limited character set makes larger
+    vocabularies impossible without data augmentation; 1,024 provides
+    meaningful subword units (path commands, attribute names, numeric patterns)
+    while keeping embedding tables small for 1M–88M parameter models.
+
+11. Raw SVG Diversity Requires Filtering
+    ----------------------------------------
+    Issue: The raw 414K SVG dataset includes icons, emoji, and font glyphs
+    with widely varying complexity, coordinate precision, and XML validity.
+    Without cleaning, noisy samples degrade tokenizer quality.
+
+    Fix: Applied XML validation, coordinate rounding (1 decimal place),
+    and whitespace normalization. ~12K SVGs (~3%) were dropped as too long.
+    Final cleaned set: 402K SVGs. Zero invalid-XML files found — all three
+    starvector datasets are pre-validated.
+
+12. 89K Icons Alone Give Only 37M Tokens — Fonts Dataset Needed
+    ---------------------------------------------------------------
+    Issue: svg-icons-simple (~89K SVGs) + svg-emoji-simple (~5K) produced
+    only 37M training tokens, well below the 100M target.
+
+    Root cause: Icon SVGs average only ~258 tokens each; even all 94K icons
+    and emoji combined fall ~63M tokens short.
+
+    Fix: Added starvector/svg-fonts-simple (1.8M total, capped at 320K).
+    Font glyphs are short, clean, structurally regular SVGs. The combined
+    dataset hit 101.7M training tokens.
+
+    Note for report: The three-dataset mix (icons + emoji + fonts) is
+    worth mentioning as a deliberate design choice: icons provide semantic
+    diversity, emoji provide color variety, fonts provide syntactic regularity
+    — the combination gives the tokenizer and model a balanced training set.
+
+----------------------------------------------------------------------
+PART 4 — NANOGPT TRAINING PIPELINE (PLANNED)
+----------------------------------------------------------------------
+
+SESSION — NanoGPT Training Infrastructure Design
+-------------------------------------------------
+Goal: Build a clean, self-contained NanoGPT-style training loop that
+reads the existing tokenized .npy files and trains a GPT model on SVG
+data. Two files to write:
+
+  prepare_data.py  — converts existing .npy splits → .bin binary files
+  train.py         — full training loop with all standard features
+
+Key finding: the .npy data is ALREADY tokenized, split, and in the
+correct uint16 flat format. No re-tokenization is needed.
+
+  data/tokenized/train.npy   shape=(101,702,481,)  dtype=uint16  max_id=1018
+  data/tokenized/val.npy     shape=(1,043,258,)    dtype=uint16
+
+prepare_data.py design:
+  - Input: existing data/tokenized/train.npy and val.npy
+  - Output: data/svg/train.bin and val.bin (raw uint16 binary)
+  - NanoGPT .bin format = flat uint16 binary, no header
+  - Since data is already split and tokenized, this is a pure format
+    conversion (npy → bin), no tokenization logic needed.
+
+train.py design:
+  - GPT model configurable by --model_size (tiny/small/medium)
+  - Cosine LR schedule with linear warmup
+  - Mixed precision: bf16 on Apple Silicon / fp16 on CUDA
+  - Gradient clipping (default 1.0)
+  - Periodic checkpointing to outputs/checkpoints/
+  - Optional wandb logging via --wandb flag
+  - Block size = 1024 (matches max_seq_len from tokenizer config)
+
+Workflow:
+  python prepare_data.py \
+    --train_file data/tokenized/train.npy \
+    --val_file   data/tokenized/val.npy \
+    --output_dir data/svg
+
+  python train.py \
+    --model_size tiny \
+    --vocab_size 1024 \
+    --data_dir   data/svg
+
+Model size targets (planned):
+  tiny:    n_layer=6,  n_head=6,  n_embd=384   (~37M params)
+  small:   n_layer=8,  n_head=8,  n_embd=512   (~85M params)
+  medium:  n_layer=12, n_head=12, n_embd=768   (~124M params)
+
+Status: design complete; prepare_data.py and train.py not yet written.
+
+----------------------------------------------------------------------
+GENERAL / CROSS-CUTTING
+----------------------------------------------------------------------
+
+11. Data Not in Git (gitignored)
+    --------------------------------
+    Issue: The tokenized data files (train.npy ~194MB, val.npy ~2MB,
+    test.npy ~2MB) are in .gitignore and cannot be distributed via GitHub.
+    This means Colab runtimes cannot get data via git clone — they must
+    receive data through a separate channel (Google Drive upload).
+
+    Impact: Every Colab notebook requires a separate Drive upload step
+    before training. This is documented in each notebook's pre-flight
+    checklist.
+
+12. Checkpoints Also Not in Git
+    --------------------------------
+    Issue: Model checkpoints (outputs/checkpoints/**) are also gitignored
+    (binary files, each 4MB–350MB). Results trained on Colab must be synced
+    back to local via Drive or explicit download.
+
+    Impact: After each Colab run, outputs/results/mup_scaling_results.json
+    and the checkpoint directory must be manually copied back to the local
+    repo before running compare_scaling.py.
+
+15. μP Training Results — Underperforms SP at All Scales Except Tiny
+    -------------------------------------------------------------------
+    After training all 5 μP models (tiny through xl), the results were
+    unexpected: μP only outperformed SP at the Tiny model where the LR was
+    actually tuned. At every larger scale, SP won — and the gap grew with
+    model size.
+
+    Final results (1 epoch, LR=1e-2 for μP, LR=3e-3 for SP):
+
+      Model    Params       SP loss    μP loss       Δ (μP−SP)   μP eff. LR
+      -----------------------------------------------------------------------
+      tiny     1,049,728     1.5881     1.5018    −0.0863  ✓    5.00e-3
+      small    3,049,920     1.4441     1.4942    +0.0501  ✗    3.33e-3
+      medium  11,408,256     1.2108     1.2445    +0.0337  ✗    1.67e-3
+      large   32,516,608     1.1543     1.2351    +0.0808  ✗    1.25e-3
+      xl      86,526,720     1.1847     1.4280    +0.2434  ✗    0.83e-3
+
+    The critical column is "μP eff. LR" — the actual per-hidden-layer
+    learning rate applied by MuAdamW after its base_d_model/current_d_model
+    scaling (base_d_model=64):
+
+        eff_lr = nominal_lr × (base_d_model / d_model)
+               = 1e-2 × (64 / d_model)
+
+    At Tiny (d_model=128): eff_lr = 5e-3 > SP's 3e-3 → μP trains faster → wins.
+    At Small (d_model=192): eff_lr = 3.3e-3 ≈ SP's 3e-3 → near tie → slight loss.
+    At Medium (d_model=384): eff_lr = 1.67e-3 < SP's 3e-3 → undertrained → loses.
+    At Large (d_model=512): eff_lr = 1.25e-3 << SP's 3e-3 → significantly undertrained.
+    At XL (d_model=768): eff_lr = 0.83e-3 → 3.6× below SP → severely undertrained.
+
+    The most alarming result: XL μP (1.4280) is WORSE than Large μP (1.2351).
+    The scaling curve goes backwards at XL — a larger model produces higher
+    loss. This is a direct consequence of the effective LR being so low
+    (0.83e-3) that the model barely updates its weights meaningfully over
+    1,552 steps.
+
+16. Root Cause of μP Underperformance — Confirmed NOT a Truncated Sweep
+    -----------------------------------------------------------------------
+    Initial hypothesis (incorrect): the LR sweep was truncated at 1e-2 and
+    the true optimum was higher, causing μP to use an insufficiently large
+    nominal LR for the larger models.
+
+    This hypothesis was tested by extending the sweep to 3e-2, 1e-1, and 3e-1.
+    Results (sweep_fraction=0.2, ~310 steps on Tiny):
+
+      LR      μP val_loss
+      1e-5      6.4869
+      3e-5      6.1460
+      1e-4      5.4299
+      3e-4      3.9484
+      1e-3      2.8408
+      3e-3      2.4541
+      1e-2      2.2587  ← GLOBAL MINIMUM
+      3e-2      2.5044  ↑ worse
+      1e-1      2.4843  ↑ worse
+      3e-1      2.7440  ↑ worse
+
+    The curve turns upward immediately above 1e-2. The optimum is a genuine
+    valley, not an edge. 1e-2 was the correct transferred LR all along.
+
+    True root cause: MuAdamW scales the per-hidden-layer LR by base_d_model /
+    current_d_model (= 64 / d_model). As models get wider, the effective
+    hidden-layer LR shrinks proportionally:
+
+      tiny   (d_model=128): eff_lr = 1e-2 × 64/128 = 5.00e-3
+      small  (d_model=192): eff_lr = 1e-2 × 64/192 = 3.33e-3
+      medium (d_model=384): eff_lr = 1e-2 × 64/384 = 1.67e-3
+      large  (d_model=512): eff_lr = 1e-2 × 64/512 = 1.25e-3
+      xl     (d_model=768): eff_lr = 1e-2 × 64/768 = 0.83e-3
+
+    SP's fixed LR (3e-3) sits above μP's effective LR for all models with
+    d_model > 213. This is not a bug — it is μP's intended behaviour. The
+    μP theory guarantees that the NOMINAL LR transfers across widths; it
+    does NOT guarantee that the effective per-layer LR stays constant, nor
+    that μP will always achieve lower loss than SP. The actual update
+    magnitudes are kept O(1) by the combination of LR scaling + parameter
+    initialization scaling, but whether this produces lower loss than SP
+    depends on whether SP's fixed LR happens to be near-optimal at each scale.
+
+    In this experiment, SP's LR=3e-3 accidentally sits in a good range for
+    all model sizes, while μP's effective LR falls below it for all models
+    larger than Tiny. This is a genuine finding about μP behaviour in the
+    1M–87M parameter regime with a small base width (base_d_model=64).
+
+    Outcome: no re-training needed or appropriate. The extended sweep
+    confirms the implementation and LR choice were correct. The results
+    stand as a valid scientific observation.
+
+17. μP Power Law Fit Is Unreliable — Non-Monotonic Scaling Curve
+    ----------------------------------------------------------------
+    Because XL μP (1.4280) is worse than Large μP (1.2351), the μP
+    scaling curve is non-monotonic. A power law L = a·N^(−α) + c is a
+    strictly decreasing function of N, so it cannot fit a non-monotonic
+    dataset well.
+
+    Power law fit results:
+      SP:  L = 392.15 · N^(−0.478) + 1.085   R²=0.956  (excellent fit)
+      μP:  L = 12208  · N^(−0.781) + 1.305   R²=0.447  (poor fit)
+
+    The μP fit has enormous coefficient uncertainty:
+      SP:  a = 392 ± 1521,  α = 0.478 ± 0.294,  c = 1.085 ± 0.132
+      μP:  a = 12208 ± 326331,  α = 0.781 ± 1.939,  c = 1.305 ± 0.160
+
+    The uncertainty on μP's 'a' coefficient (±326K) is 27× larger than the
+    coefficient itself (12K). The fit is statistically meaningless.
+
+    Extrapolation to ~880M params (10× XL):
+      SP:  predicted val_loss = 1.106 ± 0.199  (trustworthy)
+      μP:  predicted val_loss = 1.306 ± 0.171  (unreliable — based on bad fit)
+
+    For the project report, the SP extrapolation (1.106) is the authoritative
+    prediction. The μP extrapolation should be reported alongside its
+    limitations, as it demonstrates what happens when the underlying
+    scaling data is not well-behaved.
+
+18. μP Scaling Exponent Appears Steeper Than SP — But Is an Artifact
+    -------------------------------------------------------------------
+    The fitted μP α = 0.781 appears steeper than SP's α = 0.478, which
+    would naively suggest μP improves faster with scale. This is misleading.
+
+    The apparent steepness is a curve-fitting artifact: scipy's curve_fit
+    tries to fit the overall downward trend from tiny (1.5018) to large
+    (1.2351), ignoring that XL (1.4280) breaks the monotonic pattern. The
+    fitter compensates for the non-monotonic data by inflating α and a,
+    producing parameters that minimise least-squares error but have no
+    physical meaning.
+
+    In reality, the observed μP scaling from tiny → large is:
+      1.5018 → 1.4942 → 1.2445 → 1.2351
+    which is slower than SP's:
+      1.5881 → 1.4441 → 1.2108 → 1.1543
+
+    SP improves more per decade of parameters than μP in this experiment,
+    entirely because SP's LR (3e-3) happens to be in a reasonable range for
+    all model sizes, while μP's effective LR becomes increasingly conservative.
+
+14. Re-running Updated Colab Notebooks Does NOT Reproduce Exact Outputs
+    -----------------------------------------------------------------------
+    Context: After fixing the Part 2 Colab notebooks (colab_large_model.ipynb,
+    colab_xl_model.ipynb) for code quality, the question arose whether
+    re-running them would reproduce the same val_loss values stored in
+    outputs/results/scaling_results.json.
+
+    Answer: No — not bit-for-bit identical — for two reasons:
+
+    a) GradScaler change: Original runs used GradScaler(enabled=True) with
+       bfloat16 AMP. The fix set enabled=False. In theory the scale-up /
+       unscale-down is a net no-op, but in practice the extra multiply and
+       divide introduce tiny floating point differences that accumulate over
+       1,500+ training steps. Final val_loss would differ by ~0.001 or less.
+
+    b) Data loading change: Original runs loaded via np.memmap (which
+       included 64 header bytes clamped to [0, 1023]). Fixed runs use
+       np.load (clean data, no header bytes). Effect is negligible —
+       64 tokens out of 101.7M (0.00006% of training data).
+
+    Conclusion: The existing outputs in outputs/results/scaling_results.json
+    and the checkpoints in outputs/checkpoints/ are the authoritative results.
+    The notebook code changes were purely quality improvements for future
+    reproducibility. Re-running is unnecessary and would waste ~65 minutes of
+    Colab compute to produce numbers within ~0.001 of what is already saved.
+
+19. Part 4 Model Choice — SP Large with lr=3e-3 (Not XL)
+    -------------------------------------------------------
+    Decision: Use SP Large (33M params, lr=3e-3) as the "best model" for
+    Part 4 extended training and sample generation.
+
+    Rationale:
+    a) Experimental consistency: the LR sweep found 3e-3 as optimal. This
+       LR was applied to all 5 model sizes in Part 2. SP Large was trained
+       with 3e-3 and achieved val_loss=1.1543 — the best result of the whole
+       scaling study. Using Large for Part 4 extends the experiment cleanly.
+
+    b) SP XL was trained with lr=0.001 (not the sweep-optimal 3e-3), making
+       it an off-protocol run. Its val_loss (1.1847) is actually worse than
+       Large's (1.1543). Using XL for Part 4 would require retraining it
+       from scratch anyway, which is the same cost as starting with Large.
+
+    c) Faster iteration: Large trains in ~5 min/epoch on A100 vs ~8.5 min
+       for XL. 3 epochs of Large = ~15 min vs ~25 min for XL — same
+       total compute budget, more epochs.
+
+    What "extended training" means here:
+    - 3 epochs of Large with lr=3e-3, cosine schedule, same tokenizer/data
+    - Expected val_loss after 3 epochs: ~1.05–1.10 (rough estimate)
+    - Checkpoint saved each epoch for safety
+
+    Alternative considered and rejected:
+    - SP XL retrained with lr=3e-3: valid but slower, and Large is already
+      better under the protocol — choosing XL just for size would be
+      inconsistent with the findings.

@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.mup_train import train_mup_model
 
 
-LEARNING_RATES = [1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2]
+LEARNING_RATES = [1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1]
 
 
 def run_mup_sweep(
@@ -39,9 +39,18 @@ def run_mup_sweep(
     """
     Train Tiny μP model at each LR. Returns {lr: val_loss} dict.
     The best LR will be transferred (without retuning) to all larger μP models.
+    Loads existing results from the JSON file and skips already-tested LRs.
     """
+    # Load any previously saved results so we can skip them
+    res_path = Path(output_dir) / "results" / "mup_lr_sweep_results.json"
+    existing = {}
+    if res_path.exists():
+        raw = json.load(open(res_path))
+        existing = {float(k): v for k, v in raw.items()}
+        print(f"Found {len(existing)} existing result(s) — will skip those LRs.")
+
     print("\n" + "=" * 60)
-    print("μP LR SWEEP  —  Task 3.3")
+    print("μP LR SWEEP  —  Task 3.3 (extended)")
     print(f"Config : {config_path}")
     print(f"LRs    : {LEARNING_RATES}")
     print(f"Fraction of epoch: {sweep_fraction:.0%}")
@@ -55,8 +64,11 @@ def run_mup_sweep(
         print(f"Using max_steps={max_steps_for_fraction} per LR trial "
               f"(out of ~{full_steps} full-epoch steps)")
 
-    results = {}
+    results = dict(existing)
     for lr in LEARNING_RATES:
+        if lr in existing:
+            print(f"\n--- μP LR = {lr:.0e}  [SKIP — already have val_loss={existing[lr]:.4f}] ---")
+            continue
         print(f"\n--- μP LR = {lr:.0e} ---")
         try:
             r = train_mup_model(
