@@ -621,3 +621,125 @@ GENERAL / CROSS-CUTTING
     - SP XL retrained with lr=3e-3: valid but slower, and Large is already
       better under the protocol — choosing XL just for size would be
       inconsistent with the findings.
+
+20. Part 4 Generation Failed — BOS Token Never Seen During Training
+    ----------------------------------------------------------------
+    Problem: All 10 unconditional SVG samples were exactly 4 characters
+    long ("<svg"), XML validity = 0%, render rate = 0%. Prefix-conditioned
+    samples were barely longer than the prefix itself (87–136 chars total).
+
+    Root cause: The generation prompt included BOS token (ID=1) prepended
+    before the SVG content:
+        prompt_ids = [BOS_ID] + tokenizer.encode('<svg').ids  # [1, 19, 118]
+
+    BOS (ID=1) is defined in the tokenizer vocabulary but was NEVER used
+    during training. train.py's get_batch() samples random windows from the
+    raw token array — it never prepends BOS to any sequence. The model
+    therefore never learned what should follow token ID=1, so it immediately
+    emitted EOS (ID=2) and stopped. The output was just the prompt decoded
+    back: ids_to_svg([1, 19, 118, 2]) → strip BOS/EOS → decode [19, 118]
+    → "<svg" → 4 characters.
+
+    The prefix-conditioned samples were slightly longer only because the
+    prefix itself provided more in-distribution context, but EOS still fired
+    within a few tokens.
+
+    Fix: Remove BOS entirely from the prompt. Start directly from the SVG
+    opening tag text, exactly as the training data begins each document:
+
+        # Before (broken):
+        prompt_ids = [BOS_ID] + tokenizer.encode('<svg').ids
+
+        # After (correct):
+        UNCOND_PROMPT = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+        prompt_ids = tokenizer.encode(UNCOND_PROMPT).ids
+
+    Also removed BOS from prefix-conditioned prompts for the same reason.
+    The ids_to_svg() decoder was also updated to no longer strip BOS (since
+    it no longer appears in the output).
+
+    Files changed: notebooks/colab_part4_generation.ipynb (cell p4000013)
+
+    Lesson: Special tokens defined in the tokenizer vocabulary are only
+    meaningful to the model if they actually appear in the training data.
+    BOS/EOS must be explicitly inserted during the data encoding step
+    (04_split_and_encode.py) to be learnable. In this project, only EOS
+    was inserted between SVG documents; BOS was never used.
+
+21. Part 4 Generation Re-run — Random Model Evaluated Instead of Trained Checkpoint
+    ---------------------------------------------------------------------------------
+    Problem: After applying the BOS fix (issue #20) and re-running the generation
+    cells, the evaluation showed val_loss=7.023 and perplexity=1123.78 —
+    far worse than the trained model's val_loss=0.9538 / perplexity=2.607
+    from the first run. XML validity, render rate, and structural validity
+    were all still 0%.
+
+    Root cause: The notebook was re-run starting from the training setup cell
+    (cell p4000008), which executes:
+        model = GPT(config).to(device)
+    This reinitializes the model to random weights. The training loop cell
+    (p4000009) was NOT re-run (to avoid waiting 15 minutes), so 'model'
+    remained a random untrained model for both generation and evaluation.
+    A random model with vocab_size=1024 produces perplexity ~1024+, which
+    matches the observed 1123.78.
+
+    The SVG content was longer than the BOS-bug run (96–465 chars vs 4 chars)
+    because the BOS fix was working correctly — the model was generating
+    tokens. But with random weights, the tokens were meaningless garbage,
+    so all XML validity checks failed.
+
+    Fix: Added a dedicated checkpoint-loading cell (p4000012b) immediately
+    before the generation section. This cell:
+      1. Hardcodes CKPT_PATH to the Drive checkpoint location
+      2. Calls torch.load() and model.load_state_dict() explicitly
+      3. Rebuilds model/config from the checkpoint (safe if training was skipped)
+      4. Sets final_val, N_EPOCHS, block_size from the checkpoint metadata
+
+    This means the generation section can now be run independently of the
+    training section — just run cells 1–6 (setup) + cell 12b (load) + cells
+    13+ (generation/eval), skipping the 15-minute training loop entirely.
+
+    Files changed: notebooks/colab_part4_generation.ipynb (cell p4000012b added)
+
+    Lesson: In multi-session Colab workflows, never rely on a Python variable
+    (model, CKPT_PATH, final_val) that was set by a long-running training cell.
+    Always have an explicit load-from-checkpoint cell that can be run in
+    isolation, so partial re-runs are safe.
+
+22. Part 4 Generation — Model Terminates with EOS Before Producing Valid SVG
+    --------------------------------------------------------------------------
+    Problem: With the correct trained model (val_loss=0.9539, perplexity=2.61),
+    generated SVGs had avg length of only 78 chars — barely more than the 60-char
+    unconditional prompt. XML validity, render rate, and structural validity were
+    all 0%.
+
+    Root cause: The model learned EOS (token ID=2) as a document separator from
+    the packed training data, where multiple SVGs were concatenated with EOS
+    between them. During generation, the model sometimes predicted EOS after only
+    a few tokens — before outputting </svg> or any meaningful shape content.
+    Because model.generate() stops immediately on EOS, the result was a truncated
+    unclosed string like:
+        <svg xmlns="..." viewBox="0 0 24 24"><path d="M
+    which is invalid XML.
+
+    Fix: Added a min_new_tokens parameter to GPT.generate() in scripts/model.py.
+    When min_new_tokens > 0, the EOS logit is set to -inf for the first N steps,
+    preventing the model from emitting EOS until it has produced enough content
+    to form a complete SVG. The generation notebook uses min_new_tokens=80,
+    which is sufficient to produce at least one shape element and the closing
+    </svg> tag before EOS is allowed.
+
+        # Before (stops at first EOS, often after ~18 chars of new content):
+        out = model.generate(idx, max_new_tokens=400, eos_id=EOS_ID)
+
+        # After (EOS suppressed for first 80 steps):
+        out = model.generate(idx, max_new_tokens=400, eos_id=EOS_ID,
+                             min_new_tokens=80)
+
+    Files changed:
+      - scripts/model.py (GPT.generate: added min_new_tokens param + logit masking)
+      - notebooks/colab_part4_generation_v2.ipynb (generate_svg uses min_new_tokens=80)
+
+    Lesson: EOS suppression (min_new_tokens) is a standard technique when
+    language models are trained on packed sequences and the prompt alone does not
+    provide enough context for the model to commit to a full-length generation.
