@@ -165,8 +165,9 @@ class GPT(nn.Module):
         top_k: int = None,
         top_p: float = None,
         eos_id: int = 2,
+        min_new_tokens: int = 0,
     ) -> torch.Tensor:
-        for _ in range(max_new_tokens):
+        for step in range(max_new_tokens):
             idx_cond = idx[:, -self.config.block_size:]
             logits, _ = self(idx_cond)
             logits = logits[:, -1, :] / temperature
@@ -183,9 +184,13 @@ class GPT(nn.Module):
                 sorted_logits[remove] = float("-inf")
                 logits = logits.scatter(1, sorted_idx, sorted_logits)
 
+            # Suppress EOS until min_new_tokens have been generated
+            if eos_id is not None and step < min_new_tokens:
+                logits[:, eos_id] = float("-inf")
+
             next_tok = torch.multinomial(F.softmax(logits, dim=-1), num_samples=1)
             idx = torch.cat([idx, next_tok], dim=1)
-            if (next_tok == eos_id).all():
+            if eos_id is not None and (next_tok == eos_id).all():
                 break
 
         return idx
