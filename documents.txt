@@ -743,3 +743,140 @@ GENERAL / CROSS-CUTTING
     Lesson: EOS suppression (min_new_tokens) is a standard technique when
     language models are trained on packed sequences and the prompt alone does not
     provide enough context for the model to commit to a full-length generation.
+
+23. Part 4 Generation — Wrong Tokenizer File Used for Decoding
+    ------------------------------------------------------------
+    Problem: All generated SVG outputs decoded to empty strings, producing
+    outputs that were just the prompt text (60 chars for unconditional, prefix
+    length for prefix-conditioned). XML validity was 0% across all runs.
+
+    Root cause: The training pipeline (04_split_and_encode.py) encoded the
+    SVG data using SentencePiece (tokenizer/svg_bpe.model, vocab_size=1024).
+    The generation code in the Colab notebook loaded the wrong tokenizer:
+    tokenizer/tokenizer.json — a HuggingFace BPE file with only 165 tokens.
+
+    The model generates token IDs in the range 0-1023 (SentencePiece vocab).
+    The HuggingFace tokenizer only knows IDs 0-164. Any ID > 164 decodes to
+    an empty string in the HuggingFace library. Since the most common tokens
+    in the training data (e.g. ID 263 = 'L', ID 291 = 'path', ID 984 = '"')
+    are all > 164, every generated token was silently decoded to "".
+
+    Fix: Replaced HuggingFace tokenizer with SentencePiece in the notebook:
+        # Before (wrong):
+        from tokenizers import Tokenizer
+        tokenizer = Tokenizer.from_file(f'{REPO_DIR}/tokenizer/tokenizer.json')
+
+        # After (correct):
+        import sentencepiece as spm
+        sp = spm.SentencePieceProcessor()
+        sp.load(f'{REPO_DIR}/tokenizer/svg_bpe.model')
+        BOS_ID = sp.piece_to_id('<bos>')  # 1
+        EOS_ID = sp.piece_to_id('<eos>')  # 2
+
+    After fix: avg output length jumped from 78 chars to 1394 chars, and
+    XML validity rose from 0% to 26.7% (4/15 samples fully valid and renderable).
+
+    Files changed: notebooks/colab_part4_generation_v2.ipynb (cells 3, 5, 7)
+
+    Lesson: Verify that the tokenizer used for generation matches the one
+    used during data encoding. In this project, two tokenizer files exist:
+    svg_bpe.model (SentencePiece, used for training) and tokenizer.json
+    (HuggingFace, used only for the tokenizer training step). They are not
+    interchangeable.
+
+======================================================================
+PART 4 GENERATION — CONSOLIDATED FIX LOG
+======================================================================
+
+This section summarises every bug encountered and fixed during the
+Part 4 SVG generation pipeline, in the order they were discovered.
+
+----------------------------------------------------------------------
+FIX 1 — Wrong prompt: BOS token never seen by model  (Issue #20)
+----------------------------------------------------------------------
+Symptom : All generated SVGs were 4 chars — just "<svg".
+Root cause: Prompt was [BOS_ID=1] + encode("<svg"). BOS token was
+  defined in the tokenizer but never inserted into the training data,
+  so the model had no learned distribution after BOS and immediately
+  emitted EOS.
+Fix: Removed BOS from the prompt. Used the full SVG opening tag
+  '<svg xmlns="..." viewBox="0 0 24 24">' as the unconditional prompt,
+  matching what the model actually saw in training.
+
+----------------------------------------------------------------------
+FIX 2 — Random model evaluated instead of trained weights  (Issue #21)
+----------------------------------------------------------------------
+Symptom : val_loss=7.023, perplexity=1123 — far worse than the trained
+  model's 0.9539 / 2.61. SVG outputs were garbage.
+Root cause: Re-running the training setup cell (`model = GPT(config)`)
+  re-initialised model to random weights. The training loop cell was
+  skipped (to save time), so 'model' stayed random for all generation
+  and evaluation.
+Fix: Added a dedicated checkpoint-loading cell that always calls
+  torch.load() + model.load_state_dict() explicitly. Generation can
+  now be run independently of training.
+
+----------------------------------------------------------------------
+FIX 3 — max_new_tokens=900 made generation extremely slow
+----------------------------------------------------------------------
+Symptom : Single generation cell ran for 10+ minutes on A100.
+Root cause: max_new_tokens=900 and the model rarely emitted EOS, so
+  every sample ran all 900 autoregressive steps.
+Fix: Reduced max_new_tokens from 900 to 400. Enough for a complete
+  24x24 SVG and 3× faster.
+
+----------------------------------------------------------------------
+FIX 4 — Drive disconnect caused FileNotFoundError at load time
+----------------------------------------------------------------------
+Symptom : Cell 4 (glob scan) found the checkpoint and set CKPT_PATH.
+  Cell 6 (torch.load) raised FileNotFoundError for the same path.
+Root cause: Google Drive session expired between the two cells.
+Fix: Merged checkpoint scanning and loading into a single cell so
+  the file is found and read atomically without a gap.
+
+----------------------------------------------------------------------
+FIX 5 — Model emits EOS immediately, output = prompt only  (Issue #22)
+----------------------------------------------------------------------
+Symptom : Outputs were exactly 78 chars = prompt length. Model never
+  generated any real content.
+Root cause: The model learned EOS as a document separator in packed
+  training sequences. During generation it predicted EOS after 0-1
+  new tokens, before any SVG content or closing </svg> tag.
+Fix (model.py): Added min_new_tokens parameter to GPT.generate().
+  Sets logits[:, EOS_ID] = -inf for the first N steps, preventing
+  early termination.
+Fix (notebook): Added a self-contained autoregressive loop directly
+  in the generate_svg function (no dependency on model.generate()
+  version) with min_new_tokens=80.
+
+----------------------------------------------------------------------
+FIX 6 — Wrong tokenizer: HuggingFace .json instead of SentencePiece  (Issue #23)
+----------------------------------------------------------------------
+Symptom : Generated token IDs (263, 291, 984 …) all decoded to "".
+  Output was still just the prompt text. XML validity 0%.
+Root cause: Training data was encoded with SentencePiece
+  (tokenizer/svg_bpe.model, vocab=1024). The notebook loaded
+  tokenizer/tokenizer.json — a HuggingFace BPE file with 165 tokens.
+  Any ID > 164 returns "" in the HuggingFace library. The most common
+  SVG tokens (ID 263='L', 291='path', 984='"') are all > 164, so
+  every generated token was silently discarded.
+Fix: Replaced HuggingFace tokenizer with SentencePiece throughout
+  the notebook (install sentencepiece, load svg_bpe.model, use
+  sp.encode/sp.decode). BOS and EOS IDs confirmed from the model:
+  BOS=1, EOS=2.
+
+----------------------------------------------------------------------
+FINAL RESULT after all fixes
+----------------------------------------------------------------------
+  Model         : Large, 32.5M params, SP, lr=3e-3, 3 epochs
+  val_loss      : 0.9539   |   Test perplexity : 2.6069
+  Unconditional : 10 samples (T=0.5/0.8/1.0)
+  Prefix-cond.  : 5 samples
+  Avg length    : 1394 chars
+  XML validity  : 26.7%  (4/15)
+  Render rate   : 26.7%  (4/15)
+  Structural    : 26.7%  (4/15)
+
+  The 73.3% failure rate is primarily truncation: the model generates
+  real SVG structure but hits the 400-token budget before closing </svg>.
+======================================================================
