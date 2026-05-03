@@ -1,22 +1,3 @@
-"""
-Task 4.4 — Quantitative Evaluation of generated SVG samples.
-
-Metrics computed:
-  - Test set perplexity  (exp of avg cross-entropy loss on test.npy)
-  - XML validity rate    (% parseable by lxml.etree)
-  - SVG render rate      (% renderable by CairoSVG to PNG)
-  - Structural validity  (% with <svg> root, closed tags, valid attrs)
-
-Usage:
-    python scripts/evaluate.py \
-        --checkpoint outputs/checkpoints/large/checkpoint_final.pt \
-        --generated_dir outputs/generated \
-        --data_dir data/tokenized
-
-Outputs:
-    outputs/results/evaluation_results.json
-"""
-
 import argparse
 import json
 import math
@@ -31,11 +12,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.model import GPT, ModelConfig
 from scripts.train import load_data, compute_val_loss, get_device
 
-
-# ---------------------------------------------------------------------------
-# Perplexity on test set
-# ---------------------------------------------------------------------------
-
 def compute_perplexity(
     model: GPT,
     test_path: str,
@@ -46,11 +22,6 @@ def compute_perplexity(
     avg_loss = compute_val_loss(model, test_data, block_size, device)
     return math.exp(avg_loss) if not math.isnan(avg_loss) else float("nan")
 
-
-# ---------------------------------------------------------------------------
-# XML validity
-# ---------------------------------------------------------------------------
-
 def check_xml_valid(svg_text: str) -> bool:
     try:
         from lxml import etree
@@ -58,11 +29,6 @@ def check_xml_valid(svg_text: str) -> bool:
         return True
     except Exception:
         return False
-
-
-# ---------------------------------------------------------------------------
-# SVG render rate
-# ---------------------------------------------------------------------------
 
 def check_renderable(svg_text: str, out_path: str = None) -> bool:
     try:
@@ -73,11 +39,6 @@ def check_renderable(svg_text: str, out_path: str = None) -> bool:
         return True
     except Exception:
         return False
-
-
-# ---------------------------------------------------------------------------
-# Structural validity
-# ---------------------------------------------------------------------------
 
 def check_structural(svg_text: str) -> dict:
     text = svg_text.strip()
@@ -94,11 +55,6 @@ def check_structural(svg_text: str) -> dict:
         "has_shape":       has_path_or_shape,
         "fully_structural": all([has_svg_root, has_closed_tags, has_path_or_shape]),
     }
-
-
-# ---------------------------------------------------------------------------
-# Evaluate all samples in a directory
-# ---------------------------------------------------------------------------
 
 def evaluate_samples(generated_dir: str, output_dir: str, render_pngs: bool = True) -> dict:
     gen_path = Path(generated_dir)
@@ -167,10 +123,6 @@ def evaluate_samples(generated_dir: str, output_dir: str, render_pngs: bool = Tr
         ],
     }
 
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
     p = argparse.ArgumentParser(description="Evaluate generated SVG samples.")

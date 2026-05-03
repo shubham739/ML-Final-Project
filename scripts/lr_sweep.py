@@ -1,17 +1,3 @@
-"""
-Task 2.2 — Learning Rate Sweep on the Tiny model.
-
-Trains the Tiny model at 7 learning rates and plots val loss vs LR.
-
-Usage:
-    python scripts/lr_sweep.py                        # full epoch per LR (~3-4 hrs)
-    python scripts/lr_sweep.py --sweep_fraction 0.2   # 20% of epoch (~45 min)
-
-Outputs:
-    outputs/plots/lr_sweep.png
-    outputs/results/lr_sweep_results.json
-"""
-
 import argparse
 import json
 import os

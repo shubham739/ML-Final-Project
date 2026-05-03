@@ -1,18 +1,5 @@
 """
 Train a μP GPT model on the tokenized SVG dataset.
-
-Mirrors train.py but uses:
-  - build_mup_model()  instead of GPT()
-  - MuAdamW            instead of torch.optim.AdamW
-  - mup_scaling_results.json  (separate from SP results)
-
-Usage (single run):
-    python scripts/mup_train.py --config configs/tiny.json --lr 3e-4
-
-Outputs:
-  - outputs/checkpoints/<name>_mup/checkpoint_final.pt
-  - outputs/logs/<name>_mup_lr<lr>.json
-  - outputs/results/mup_scaling_results.json  (appended)
 """
 
 import argparse

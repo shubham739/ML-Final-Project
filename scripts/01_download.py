@@ -1,13 +1,3 @@
-"""
-Download SVG datasets from HuggingFace and save as JSONL.
-
-Priority order:
-  1. starvector/svg-icons-simple  (~89K icons, primary)
-  2. starvector/svg-emoji-simple  (~3.5K emoji, supplement)
-
-Each output line: {"svg": "...", "source": "dataset-name", "id": N}
-"""
-
 import json
 import os
 import sys
@@ -20,17 +10,12 @@ ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-# Datasets in priority order; (hf_name, output_filename, max_samples or None)
-# svg-fonts-simple is 2.38 GB; cap at 200K to stay manageable while reaching 100M tokens.
 DATASETS = [
     ("starvector/svg-icons-simple", "icons.jsonl",  None),
     ("starvector/svg-emoji-simple", "emoji.jsonl",  None),
     ("starvector/svg-fonts-simple", "fonts.jsonl",  320_000),
 ]
 
-# Minimum tokens we want in the training set.
-# ~89K icons × ~700 avg chars/icon ÷ ~4 chars/token ≈ ~15M tokens from icons alone.
-# We'll need emoji too. The stats script will confirm final counts.
 TARGET_TRAIN_TOKENS = 100_000_000
 
 

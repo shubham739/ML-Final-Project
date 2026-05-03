@@ -1,16 +1,5 @@
 """
-Task 3.3 — μP Learning Rate Sweep on the Tiny model.
-
-Trains the Tiny μP model at 7 learning rates. Because μP LR transfers across widths,
-the best LR found here can be applied directly to all larger models without retuning.
-
-Usage:
-    python scripts/mup_lr_sweep.py                        # full epoch per LR
-    python scripts/mup_lr_sweep.py --sweep_fraction 0.2   # 20% of epoch (fast)
-
-Outputs:
-    outputs/plots/mup_lr_sweep.png
-    outputs/results/mup_lr_sweep_results.json
+μP Learning Rate Sweep on the Tiny model.
 """
 
 import argparse
@@ -36,11 +25,6 @@ def run_mup_sweep(
     device: str = None,
     seed: int = 42,
 ) -> dict:
-    """
-    Train Tiny μP model at each LR. Returns {lr: val_loss} dict.
-    The best LR will be transferred (without retuning) to all larger μP models.
-    Loads existing results from the JSON file and skips already-tested LRs.
-    """
     # Load any previously saved results so we can skip them
     res_path = Path(output_dir) / "results" / "mup_lr_sweep_results.json"
     existing = {}

@@ -1,0 +1,119 @@
+{
+  "name": "xl",
+  "param_count": 86526720,
+  "val_loss": 1.4129916485399008,
+  "lr": 0.003,
+  "d_model": 768,
+  "n_layers": 12,
+  "n_heads": 12,
+  "d_ff": 3072,
+  "train_losses": [
+    {
+      "step": 0,
+      "train_loss": 7.13093,
+      "val_loss": 7.13199,
+      "lr": 0.0
+    },
+    {
+      "step": 100,
+      "train_loss": 3.10539,
+      "val_loss": 3.0404,
+      "lr": 0.00299838
+    },
+    {
+      "step": 200,
+      "train_loss": 2.40023,
+      "val_loss": 2.4839,
+      "lr": 0.00295394
+    },
+    {
+      "step": 300,
+      "train_loss": 1.91341,
+      "val_loss": 1.94568,
+      "lr": 0.00285057
+    },
+    {
+      "step": 400,
+      "train_loss": 1.81681,
+      "val_loss": 1.78226,
+      "lr": 0.00269294
+    },
+    {
+      "step": 500,
+      "train_loss": 1.75897,
+      "val_loss": 1.71677,
+      "lr": 0.00248817
+    },
+    {
+      "step": 600,
+      "train_loss": 1.68689,
+      "val_loss": 1.67729,
+      "lr": 0.00224553
+    },
+    {
+      "step": 700,
+      "train_loss": 1.61222,
+      "val_loss": 1.64373,
+      "lr": 0.00197597
+    },
+    {
+      "step": 800,
+      "train_loss": 1.61258,
+      "val_loss": 1.62735,
+      "lr": 0.00169169
+    },
+    {
+      "step": 900,
+      "train_loss": 1.59713,
+      "val_loss": 1.62321,
+      "lr": 0.00140551
+    },
+    {
+      "step": 1000,
+      "train_loss": 1.5651,
+      "val_loss": 1.54432,
+      "lr": 0.00113039
+    },
+    {
+      "step": 1100,
+      "train_loss": 1.51234,
+      "val_loss": 1.5306,
+      "lr": 0.00087875
+    },
+    {
+      "step": 1200,
+      "train_loss": 1.52373,
+      "val_loss": 1.51448,
+      "lr": 0.00066196
+    },
+    {
+      "step": 1300,
+      "train_loss": 1.48636,
+      "val_loss": 1.49863,
+      "lr": 0.00048983
+    },
+    {
+      "step": 1400,
+      "train_loss": 1.52921,
+      "val_loss": 1.47516,
+      "lr": 0.00037013
+    },
+    {
+      "step": 1500,
+      "train_loss": 1.4962,
+      "val_loss": 1.45006,
+      "lr": 0.00030827
+    },
+    {
+      "step": 1551,
+      "train_loss": 1.47223,
+      "val_loss": 1.46082,
+      "lr": 0.0003
+    }
+  ],
+  "total_time_seconds": 503.5,
+  "tokens_per_second": 201996.7,
+  "peak_memory_mb": 4424.3,
+  "total_steps": 1552,
+  "effective_batch_tokens": 65536
+}

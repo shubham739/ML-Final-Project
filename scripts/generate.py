@@ -1,26 +1,3 @@
-"""
-Task 4.2 & 4.3 — SVG Generation from a trained GPT model.
-
-Supports unconditional generation (start from <bos><svg) and
-prefix-conditioned generation (provide partial SVG, let model complete it).
-
-Sampling strategies: temperature, top-k, top-p (nucleus), or combinations.
-
-Usage:
-    # Unconditional (10 samples, temperature=0.8, top-k=50)
-    python scripts/generate.py --checkpoint outputs/checkpoints/large/checkpoint_final.pt \
-        --n_samples 10 --temperature 0.8 --top_k 50
-
-    # Prefix-conditioned (5 samples from a prefix string)
-    python scripts/generate.py --checkpoint outputs/checkpoints/large/checkpoint_final.pt \
-        --prefix '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle' \
-        --n_samples 5 --temperature 1.0 --top_p 0.9
-
-Outputs:
-    outputs/generated/  —  one .svg file per sample
-    outputs/results/generation_results.json  —  metadata
-"""
-
 import argparse
 import json
 import os

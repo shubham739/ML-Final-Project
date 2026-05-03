@@ -1,18 +1,5 @@
 """
 μP (Maximal Update Parameterization) GPT — Part 3 of the SVG scaling study.
-
-Key differences from model.py (Standard Parameterization):
-  1. Attention logit scale: 1/head_dim  (SP uses 1/sqrt(head_dim))
-  2. Output layer: MuReadout            (SP uses plain nn.Linear; MuReadout scales LR by 1/width)
-  3. No input↔output weight tying       (μP assigns different LR multipliers to each)
-  4. set_base_shapes() registered       (tells MuAdamW which dims are "infinite" → per-layer LR)
-
-Usage:
-    from scripts.mup_model import MupGPT, build_mup_model
-    from scripts.model import ModelConfig
-
-    model = build_mup_model(config)          # properly set-up μP model
-    optimizer = MuAdamW(model.parameters())  # LR-transfer-aware optimizer
 """
 
 import json
@@ -29,20 +16,11 @@ from mup import MuReadout, set_base_shapes
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.model import ModelConfig, MLP
 
-
-# ---------------------------------------------------------------------------
-# Reference width used to define μP base shapes (must be small enough that
-# every target model is strictly wider).
-# ---------------------------------------------------------------------------
 _BASE_D_MODEL  = 64    # base model width
 _DELTA_D_MODEL = 128   # delta model width (2× base)
 _BASE_N_HEADS  = 4     # divides both 64 and 128
 _BASE_D_FF_MULTIPLIER = 4  # d_ff = d_model * 4  (same ratio as target configs)
 
-
-# ---------------------------------------------------------------------------
-# Attention with μP scaling
-# ---------------------------------------------------------------------------
 
 class MupCausalSelfAttention(nn.Module):
     """Causal self-attention with μP logit scaling: 1/head_dim (not 1/√head_dim)."""
@@ -110,10 +88,6 @@ class MupBlock(nn.Module):
         x = x + self.mlp(self.ln2(x))
         return x
 
-
-# ---------------------------------------------------------------------------
-# μP GPT
-# ---------------------------------------------------------------------------
 
 class MupGPT(nn.Module):
     """
@@ -217,10 +191,6 @@ class MupGPT(nn.Module):
         return idx
 
 
-# ---------------------------------------------------------------------------
-# Factory: create a properly μP-initialized model
-# ---------------------------------------------------------------------------
-
 def _make_base_config(target_config: ModelConfig, d_model: int) -> ModelConfig:
     """Build a minimal-width config with the same depth as the target."""
     return ModelConfig(
@@ -236,13 +206,6 @@ def _make_base_config(target_config: ModelConfig, d_model: int) -> ModelConfig:
 
 
 def build_mup_model(config: ModelConfig) -> MupGPT:
-    """
-    Create a MupGPT with μP base shapes registered.
-
-    Builds a base (d_model=64) and delta (d_model=128) model with the same
-    depth as `config`, then calls set_base_shapes so that MuAdamW can apply
-    the correct per-parameter LR multiplier: lr × (base_width / current_width).
-    """
     base_cfg  = _make_base_config(config, _BASE_D_MODEL)
     delta_cfg = _make_base_config(config, _DELTA_D_MODEL)
 
@@ -255,10 +218,6 @@ def build_mup_model(config: ModelConfig) -> MupGPT:
 
     return model
 
-
-# ---------------------------------------------------------------------------
-# Quick sanity check
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     import sys

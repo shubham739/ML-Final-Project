@@ -1,18 +1,3 @@
-"""
-SVG normalization and cleaning pipeline.
-
-Steps applied to every SVG string:
-  1. Strip XML comments (<!-- ... -->)
-  2. Strip <metadata> blocks
-  3. Collapse whitespace (multiple spaces/newlines → single space)
-  4. Normalize coordinate precision (round floats to 1 decimal place)
-  5. Length filter: drop SVGs shorter than MIN_CHARS or longer than MAX_CHARS
-  6. XML validation via lxml (discard malformed)
-
-Output: data/cleaned/cleaned.jsonl  (one JSON record per line)
-        data/cleaned/clean_stats.json (filtering statistics)
-"""
-
 import json
 import re
 import sys
@@ -29,19 +14,11 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 OUT_FILE   = OUT_DIR / "cleaned.jsonl"
 STATS_FILE = OUT_DIR / "clean_stats.json"
 
-# --- Thresholds ---------------------------------------------------------------
 MIN_CHARS = 50
-# 1024 tokens × ~4 chars/token as a character-level pre-filter.
-# Actual token-length filtering happens in 04_split_and_encode.py.
 MAX_CHARS = 1024 * 4
-
-# Regex: floating-point numbers (positive or negative)
 _FLOAT_RE = re.compile(r"-?\d+\.\d+")
-# Regex: XML comments
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-# Regex: <metadata>...</metadata> blocks (case-insensitive tag)
 _META_RE = re.compile(r"<metadata[^>]*>.*?</metadata>", re.DOTALL | re.IGNORECASE)
-# Regex: multiple whitespace → single space
 _WS_RE = re.compile(r"\s+")
 
 

@@ -1,0 +1,81 @@
+{
+  "checkpoint": "/content/drive/MyDrive/ML-Final-Project/outputs/checkpoints/large_extended/checkpoint_epoch3.pt",
+  "model_name": "large",
+  "samples": [
+    {
+      "filename": "unconditional_01_T0.5.svg",
+      "temperature": 0.5,
+      "type": "unconditional"
+    },
+    {
+      "filename": "unconditional_02_T0.5.svg",
+      "temperature": 0.5,
+      "type": "unconditional"
+    },
+    {
+      "filename": "unconditional_03_T0.5.svg",
+      "temperature": 0.5,
+      "type": "unconditional"
+    },
+    {
+      "filename": "unconditional_04_T0.5.svg",
+      "temperature": 0.5,
+      "type": "unconditional"
+    },
+    {
+      "filename": "unconditional_05_T0.8.svg",
+      "temperature": 0.8,
+      "type": "unconditional"
+    },
+    {
+      "filename": "unconditional_06_T0.8.svg",
+      "temperature": 0.8,
+      "type": "unconditional"
+    },
+    {
+      "filename": "unconditional_07_T0.8.svg",
+      "temperature": 0.8,
+      "type": "unconditional"
+    },
+    {
+      "filename": "unconditional_08_T0.8.svg",
+      "temperature": 0.8,
+      "type": "unconditional"
+    },
+    {
+      "filename": "unconditional_09_T1.0.svg",
+      "temperature": 1.0,
+      "type": "unconditional"
+    },
+    {
+      "filename": "unconditional_10_T1.0.svg",
+      "temperature": 1.0,
+      "type": "unconditional"
+    },
+    {
+      "filename": "prefix_01_circle_face.svg",
+      "temperature": 0.8,
+      "type": "prefix"
+    },
+    {
+      "filename": "prefix_02_open_path.svg",
+      "temperature": 0.8,
+      "type": "prefix"
+    },
+    {
+      "filename": "prefix_03_group_rect.svg",
+      "temperature": 0.8,
+      "type": "prefix"
+    },
+    {
+      "filename": "prefix_04_arrow_shaft.svg",
+      "temperature": 0.8,
+      "type": "prefix"
+    },
+    {
+      "filename": "prefix_05_half_icon.svg",
+      "temperature": 0.8,
+      "type": "prefix"
+    }
+  ]
+}

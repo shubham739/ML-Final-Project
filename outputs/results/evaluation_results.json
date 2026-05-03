@@ -1,0 +1,134 @@
+{
+  "model_name": "large_extended",
+  "n_epochs": 3,
+  "final_val_loss": 0.9538758168928325,
+  "test_perplexity": 2.6068573140819176,
+  "xml_validity_rate": 0.8666666666666667,
+  "render_rate": 0.8666666666666667,
+  "structural_rate": 0.7333333333333333,
+  "avg_length_chars": 1393.5333333333333,
+  "n_unconditional": 10,
+  "n_prefix_conditioned": 5,
+  "per_sample": [
+    {
+      "filename": "unconditional_01_T0.5.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": false,
+      "length": 1624
+    },
+    {
+      "filename": "unconditional_02_T0.5.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 1683
+    },
+    {
+      "filename": "unconditional_03_T0.5.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 473
+    },
+    {
+      "filename": "unconditional_04_T0.5.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 1627
+    },
+    {
+      "filename": "unconditional_05_T0.8.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 1658
+    },
+    {
+      "filename": "unconditional_06_T0.8.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 1123
+    },
+    {
+      "filename": "unconditional_07_T0.8.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 1504
+    },
+    {
+      "filename": "unconditional_08_T0.8.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 1596
+    },
+    {
+      "filename": "unconditional_09_T1.0.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 1641
+    },
+    {
+      "filename": "unconditional_10_T1.0.svg",
+      "type": "unconditional",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 548
+    },
+    {
+      "filename": "prefix_01_circle_face.svg",
+      "type": "prefix",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 1564
+    },
+    {
+      "filename": "prefix_02_open_path.svg",
+      "type": "prefix",
+      "xml_valid": false,
+      "renderable": false,
+      "structural": false,
+      "length": 1749
+    },
+    {
+      "filename": "prefix_03_group_rect.svg",
+      "type": "prefix",
+      "xml_valid": false,
+      "renderable": false,
+      "structural": false,
+      "length": 1130
+    },
+    {
+      "filename": "prefix_04_arrow_shaft.svg",
+      "type": "prefix",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": true,
+      "length": 1446
+    },
+    {
+      "filename": "prefix_05_half_icon.svg",
+      "type": "prefix",
+      "xml_valid": true,
+      "renderable": true,
+      "structural": false,
+      "length": 1537
+    }
+  ]
+}

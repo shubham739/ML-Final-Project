@@ -1,21 +1,3 @@
-"""
-Tasks 3.5 & 3.6 — Compare Standard (SP) vs μP scaling curves and extrapolate.
-
-Reads:
-  outputs/results/scaling_results.json      (SP — from Part 2)
-  outputs/results/mup_scaling_results.json  (μP — from Part 3)
-  outputs/results/lr_sweep_results.json     (SP LR sweep)
-  outputs/results/mup_lr_sweep_results.json (μP LR sweep)
-
-Produces:
-  outputs/plots/sp_vs_mup_scaling.png   — overlay log-log plot + power-law fits
-  outputs/plots/lr_sweep_comparison.png — SP vs μP LR sweeps side by side
-  outputs/results/comparison_results.json
-
-Usage:
-    python scripts/compare_scaling.py
-"""
-
 import argparse
 import json
 from pathlib import Path
@@ -23,11 +5,6 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-
-
-# ---------------------------------------------------------------------------
-# Power law
-# ---------------------------------------------------------------------------
 
 def power_law(N, a, alpha, c):
     return a * N ** (-alpha) + c
@@ -47,11 +24,6 @@ def fit_power_law(params: np.ndarray, losses: np.ndarray):
         popt, pcov = curve_fit(power_law, params, losses, p0=p0, maxfev=80000)
     return popt, pcov
 
-
-# ---------------------------------------------------------------------------
-# Extrapolation with uncertainty
-# ---------------------------------------------------------------------------
-
 def extrapolate(target_params: float, popt, pcov):
     """Predict loss + 1σ confidence interval at target_params."""
     a, alpha, c = popt
@@ -65,11 +37,6 @@ def extrapolate(target_params: float, popt, pcov):
         (grad_a * perr[0])**2 + (grad_alpha * perr[1])**2 + (grad_c * perr[2])**2
     )
     return pred, pred_std
-
-
-# ---------------------------------------------------------------------------
-# Plot 1: SP vs μP scaling overlay (Tasks 3.5)
-# ---------------------------------------------------------------------------
 
 def plot_scaling_comparison(sp_data, mup_data, output_dir: str) -> str:
     fig, ax = plt.subplots(figsize=(9, 6))
@@ -129,11 +96,6 @@ def plot_scaling_comparison(sp_data, mup_data, output_dir: str) -> str:
     print(f"Scaling comparison plot saved: {out}")
     return str(out)
 
-
-# ---------------------------------------------------------------------------
-# Plot 2: LR sweep side-by-side (Task 3.5)
-# ---------------------------------------------------------------------------
-
 def plot_lr_comparison(sp_sweep: dict, mup_sweep: dict, output_dir: str) -> str:
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
@@ -173,11 +135,6 @@ def plot_lr_comparison(sp_sweep: dict, mup_sweep: dict, output_dir: str) -> str:
     plt.close(fig)
     print(f"LR comparison plot saved: {out}")
     return str(out)
-
-
-# ---------------------------------------------------------------------------
-# Main analysis
-# ---------------------------------------------------------------------------
 
 def analyze(sp_path, mup_path, sp_sweep_path, mup_sweep_path, output_dir):
     # Load results

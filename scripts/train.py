@@ -1,13 +1,5 @@
 """
 Train a GPT model on the tokenized SVG dataset.
-
-Usage (single run):
-    python scripts/train.py --config configs/tiny.json --lr 3e-4
-
-The script saves:
-  - outputs/checkpoints/<name>/checkpoint_final.pt
-  - outputs/logs/<name>_lr<lr>.json   (training curve + final val loss)
-  - outputs/results/scaling_results.json  (appended; used by fit_scaling_law.py)
 """
 
 import argparse
@@ -26,10 +18,6 @@ import torch.nn as nn
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.model import GPT, ModelConfig
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def get_device(requested: str = None) -> torch.device:
     if requested:
@@ -121,10 +109,6 @@ def upsert_scaling_results(results_path: str, entry: dict) -> None:
         json.dump(results, f, indent=2)
 
 
-# ---------------------------------------------------------------------------
-# Main training function
-# ---------------------------------------------------------------------------
-
 def train_model(
     config_path: str,
     lr: float,
@@ -141,15 +125,7 @@ def train_model(
     max_steps: int = None,
     save_checkpoint: bool = True,
 ) -> dict:
-    """
-    Train one model and return metrics dict.
 
-    Returns
-    -------
-    dict with keys: name, param_count, val_loss, train_losses,
-                    tokens_per_second, peak_memory_mb, total_time_seconds,
-                    config, lr
-    """
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -319,11 +295,6 @@ def train_model(
         torch.mps.empty_cache()
 
     return result
-
-
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
 
 def parse_args():
     p = argparse.ArgumentParser(description="Train one GPT model size.")

@@ -1,29 +1,3 @@
-"""
-Train a BPE tokenizer on the cleaned SVG corpus using sentencepiece.
-
-sentencepiece is preferred over HuggingFace ByteLevel BPE for SVG because:
-  - SVG text doesn't split cleanly on whitespace (coordinates, path data)
-  - sentencepiece learns merges across all character boundaries
-  - Works well for structured, non-linguistic text
-
-Vocabulary size: 4096
-  - Captures SVG-specific tokens: <path, fill=, viewBox, d="M, etc.
-  - Small enough for embedding tables in 1M–88M parameter models
-  - Justified: SVG has ~60–70 unique ASCII chars; 4096 merges gives
-    ~5–7 chars/token, efficient compression of path data
-
-Special token IDs (fixed by sentencepiece convention):
-  <pad>  = 0
-  <bos>  = 1
-  <eos>  = 2
-  <unk>  = 3
-
-Output:
-  tokenizer/svg_bpe.model   — sentencepiece model (binary)
-  tokenizer/svg_bpe.vocab   — human-readable vocab
-  tokenizer/tokenizer_config.json
-"""
-
 import json
 import sys
 from pathlib import Path

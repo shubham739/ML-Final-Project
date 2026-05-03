@@ -1,0 +1,73 @@
+{
+  "name": "tiny",
+  "param_count": 1049728,
+  "val_loss": 6.066107295453548,
+  "lr": 1e-05,
+  "d_model": 128,
+  "n_layers": 4,
+  "n_heads": 4,
+  "d_ff": 512,
+  "train_losses": [
+    {
+      "step": 0,
+      "train_loss": 6.96041,
+      "val_loss": 6.95883,
+      "lr": 0.0,
+      "tokens_per_sec": 54860.5
+    },
+    {
+      "step": 50,
+      "train_loss": 6.63042,
+      "val_loss": 6.6021,
+      "lr": 9.69e-06,
+      "tokens_per_sec": 70786.7
+    },
+    {
+      "step": 100,
+      "train_loss": 6.42184,
+      "val_loss": 6.37806,
+      "lr": 8.28e-06,
+      "tokens_per_sec": 71749.2
+    },
+    {
+      "step": 150,
+      "train_loss": 6.26982,
+      "val_loss": 6.22286,
+      "lr": 6.1e-06,
+      "tokens_per_sec": 71961.7
+    },
+    {
+      "step": 200,
+      "train_loss": 6.20502,
+      "val_loss": 6.13442,
+      "lr": 3.75e-06,
+      "tokens_per_sec": 71978.2
+    },
+    {
+      "step": 250,
+      "train_loss": 6.15606,
+      "val_loss": 6.08935,
+      "lr": 1.89e-06,
+      "tokens_per_sec": 72103.9
+    },
+    {
+      "step": 300,
+      "train_loss": 6.13717,
+      "val_loss": 6.06804,
+      "lr": 1.03e-06,
+      "tokens_per_sec": 72228.4
+    },
+    {
+      "step": 309,
+      "train_loss": 6.13752,
+      "val_loss": 6.06536,
+      "lr": 1e-06,
+      "tokens_per_sec": 71963.4
+    }
+  ],
+  "total_time_seconds": 287.9,
+  "tokens_per_second": 70574.0,
+  "peak_memory_mb": 48.3,
+  "total_steps": 310,
+  "effective_batch_tokens": 65536
+}

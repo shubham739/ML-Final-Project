@@ -1,15 +1,3 @@
-"""
-Compute and visualize dataset statistics for the report.
-
-Produces:
-  outputs/plots/seq_len_histogram.png   — token count distribution
-  outputs/plots/svg_examples.png        — rendered grid of SVGs at varied complexity
-  data/cleaned/dataset_stats.json       — all numbers for the report
-
-Requires cairosvg for rendering (pip install cairosvg).
-Falls back gracefully if cairosvg is not available.
-"""
-
 import json
 import sys
 from pathlib import Path

@@ -1,0 +1,42 @@
+{
+  "a": 392.14866083985146,
+  "alpha": 0.47816015890584507,
+  "c": 1.0848006594711708,
+  "a_std": 1521.3530488392482,
+  "alpha_std": 0.2936352077432377,
+  "c_std": 0.1315954586961888,
+  "r_squared": 0.9556835654445103,
+  "kaplan_alpha_nl": 0.076,
+  "extrapolation": {
+    "target_params": 865267200.0,
+    "predicted_val_loss": 1.1056965823545326,
+    "predicted_val_loss_std": 0.1995797605450487
+  },
+  "data_points": [
+    {
+      "name": "tiny",
+      "param_count": 1049728,
+      "val_loss": 1.5881057120859623
+    },
+    {
+      "name": "small",
+      "param_count": 3049920,
+      "val_loss": 1.4440532429143786
+    },
+    {
+      "name": "medium",
+      "param_count": 11408256,
+      "val_loss": 1.210848287679255
+    },
+    {
+      "name": "large",
+      "param_count": 32516608,
+      "val_loss": 1.1542790145613253
+    },
+    {
+      "name": "xl",
+      "param_count": 86526720,
+      "val_loss": 1.1846711649559438
+    }
+  ]
+}

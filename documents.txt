@@ -866,17 +866,45 @@ Fix: Replaced HuggingFace tokenizer with SentencePiece throughout
   BOS=1, EOS=2.
 
 ----------------------------------------------------------------------
-FINAL RESULT after all fixes
+FIX 7 — Truncated SVG files: apply try_close_svg() post-processing
+----------------------------------------------------------------------
+Symptom : Local outputs/generated/*.svg files were saved raw from the
+  model's token stream. 11/15 files were missing the closing </svg>
+  tag because the model hit the 400-token generation budget mid-path.
+  lxml rejected all of these as malformed XML, giving 26.7% validity.
+
+Root cause: The generation loop stopped at max_new_tokens=400 without
+  guaranteeing a proper EOS / </svg> close. In packed-sequence training
+  the model learns </svg> as an end-of-document separator, so it does
+  eventually produce it — but not always within 400 tokens.
+
+Fix: Applied try_close_svg() post-processing to every generated file:
+    def try_close_svg(text):
+        text = text.strip()
+        if text.endswith("</svg>"):
+            return text
+        last_gt = text.rfind(">")    # find last complete tag boundary
+        return text[:last_gt + 1] + "</svg>"
+  This truncates after the last complete XML tag and closes the document.
+  Any incomplete path coordinate data after the last ">" is discarded.
+  The fix was applied in-place to all 15 local SVG files.
+
+----------------------------------------------------------------------
+FINAL RESULT after all fixes (including post-processing)
 ----------------------------------------------------------------------
   Model         : Large, 32.5M params, SP, lr=3e-3, 3 epochs
   val_loss      : 0.9539   |   Test perplexity : 2.6069
-  Unconditional : 10 samples (T=0.5/0.8/1.0)
-  Prefix-cond.  : 5 samples
-  Avg length    : 1394 chars
-  XML validity  : 26.7%  (4/15)
-  Render rate   : 26.7%  (4/15)
-  Structural    : 26.7%  (4/15)
+  Unconditional : 10 samples (T=0.5/0.8/1.0, 4 each at 0.5 and 0.8, 2 at 1.0)
+  Prefix-cond.  : 5 samples (circle_face, open_path, group_rect, arrow_shaft, half_icon)
+  Avg length    : 1394 chars (before post-processing)
+  XML validity  : 86.7%  (13/15)   — 2 failed: prefix_02 & prefix_03
+  Render rate   : 86.7%  (13/15)   — same 2 failures
+  Structural    : 73.3%  (11/15)
+  Rendered PNGs : 13 files in outputs/generated_png/
 
-  The 73.3% failure rate is primarily truncation: the model generates
-  real SVG structure but hits the 400-token budget before closing </svg>.
+  The 2 remaining failures (prefix_02_open_path, prefix_03_group_rect)
+  had unclosed XML attribute strings at the truncation boundary (e.g.
+  d="M1.5 ...C15.2 with no closing quote), which no post-processing
+  can recover. These prefixes induced unusually deep path structures
+  that exceeded the 400-token budget mid-attribute.
 ======================================================================

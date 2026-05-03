@@ -1,5 +1,7 @@
 data/
-outputs/
 tokenizer/corpus_tmp.txt
 __pycache__/
 *.pyc
+*.pt
+outputs/checkpoints/
+**/.DS_Store

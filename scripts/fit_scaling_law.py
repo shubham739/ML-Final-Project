@@ -1,20 +1,3 @@
-"""
-Task 2.4 — Fit a power-law scaling curve and produce the log-log plot.
-
-Reads outputs/results/scaling_results.json (written by train.py) and fits:
-
-    L(N) = a * N^(-alpha) + c
-
-Outputs:
-    outputs/plots/scaling_law.png
-    outputs/results/scaling_law_fit.json
-    Console: fitted a, alpha, c + comparison with Kaplan et al.
-
-Usage:
-    python scripts/fit_scaling_law.py
-    python scripts/fit_scaling_law.py --results path/to/scaling_results.json
-"""
-
 import argparse
 import json
 import os

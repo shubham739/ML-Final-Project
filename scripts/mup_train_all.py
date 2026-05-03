@@ -1,23 +1,5 @@
 """
-Task 3.4 — Train all 5 μP model sizes with the transferred best LR.
-
-The LR is NOT retuned for each model size — that is the central promise of μP.
-The best LR from mup_lr_sweep.py is passed once and applied to all sizes.
-
-Usage:
-    # After running mup_lr_sweep.py, pass its best LR here:
-    python scripts/mup_train_all.py --best_lr 3e-4
-
-    # Or auto-read best LR from saved sweep results:
-    python scripts/mup_train_all.py --auto_lr
-
-    # Skip already-trained sizes:
-    python scripts/mup_train_all.py --best_lr 3e-4 --skip_existing
-
-Outputs:
-    outputs/checkpoints/<name>_mup/checkpoint_final.pt  (one per size)
-    outputs/results/mup_scaling_results.json
-    outputs/logs/<name>_mup_lr<lr>.json
+Train all 5 μP model sizes with the transferred best LR.
 """
 
 import argparse

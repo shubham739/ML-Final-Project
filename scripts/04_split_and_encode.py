@@ -1,22 +1,3 @@
-"""
-Create train/val/test splits and encode to token ID arrays.
-
-Split strategy:
-  - Shuffle all SVG files with a fixed seed (reproducible)
-  - 98% train / 1% val / 1% test  (by number of SVG files)
-  - Split by file, NOT by token position — prevents data leakage
-  - Filter out any SVG whose token count exceeds MAX_SEQ_LEN
-
-After splitting, concatenate each split into a single 1-D token stream
-with <eos> tokens between SVGs. Save as uint16 NumPy arrays (.npy).
-
-Output:
-  data/tokenized/train.npy
-  data/tokenized/val.npy
-  data/tokenized/test.npy
-  data/tokenized/split_metadata.json
-"""
-
 import json
 import random
 import sys
