@@ -1,4 +1,4 @@
-\documentclass[11pt,letterpaper]{article}
+\documentclass[10pt,letterpaper]{article}
 
 % -----------------------------------------------------------------------
 % Packages
@@ -12,10 +12,10 @@
 \usepackage{subcaption}
 \usepackage{float}
 \usepackage{microtype}
-\usepackage{parskip}
 \usepackage{xcolor}
 \usepackage{enumitem}
 \usepackage{multirow}
+\usepackage[compact]{titlesec}
 
 % Allow slightly wider lines to avoid overfull hbox in monospace strings
 \setlength{\emergencystretch}{3em}
@@ -178,7 +178,7 @@ Token length distribution: mean = 258.5, median = 202.0, 95th percentile
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.62\linewidth]{seq_len_histogram.png}
+  \includegraphics[width=0.50\linewidth]{seq_len_histogram.png}
   \caption{Distribution of token lengths per SVG file in the training set.
            The 95th percentile (659 tokens) is well below the 1,024-token
            context window, so no sequences are truncated during training.}
@@ -187,7 +187,7 @@ Token length distribution: mean = 258.5, median = 202.0, 95th percentile
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{dataset_examples.png}
+  \includegraphics[width=0.72\linewidth]{dataset_examples.png}
   \caption{Rendered examples of SVGs from the training dataset at three
            complexity levels. Simple icons (top row) contain a single
            outline path; medium-complexity icons (middle row) combine
@@ -268,33 +268,14 @@ Large/XL: Google Colab A100 (hence higher throughput and memory).}
 
 A learning rate sweep was performed on the Tiny model using 20\% of training
 steps ($\approx$310 steps), covering seven values from $10^{-5}$ to
-$10^{-2}$:
-
-\begin{table}[H]
-\centering
-\caption{SP learning rate sweep on Tiny model (sweep fraction = 0.20).}
-\label{tab:lr_sweep}
-\begin{tabular}{cc}
-\toprule
-Learning rate & Val loss \\
-\midrule
-$1 \times 10^{-5}$ & 6.0661 \\
-$3 \times 10^{-5}$ & 5.4399 \\
-$1 \times 10^{-4}$ & 4.2819 \\
-$3 \times 10^{-4}$ & 3.0435 \\
-$1 \times 10^{-3}$ & 2.6896 \\
-$\mathbf{3 \times 10^{-3}}$ & $\mathbf{2.3214}$ \\
-$1 \times 10^{-2}$ & 2.3567 \\
-\bottomrule
-\end{tabular}
-\end{table}
+$10^{-2}$ (full numerical results in Table~\ref{tab:lr_sweep}).
 
 The optimal SP learning rate is $\eta^* = 3 \times 10^{-3}$, which was
 applied to all five model sizes for their full-epoch training runs.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.65\linewidth]{lr_sweep.png}
+  \includegraphics[width=0.50\linewidth]{lr_sweep.png}
   \caption{SP learning rate sweep on Tiny model. Val loss is minimized at
   $\eta = 3 \times 10^{-3}$, with instability above $10^{-2}$.}
   \label{fig:lr_sweep}
@@ -311,7 +292,7 @@ used LR $= 3 \times 10^{-3}$ except XL.
 Our first XL run used LR $= 3 \times 10^{-3}$ and got a val loss of 1.413, which is actually worse than Medium (1.211). In Standard Parameterization, the optimal LR shrinks as the model gets wider because gradient norms scale with $d_\text{model}$. At XL ($d_\text{model} = 768$), LR $= 3 \times 10^{-3}$ was way too aggressive, the training curve stalled for around 200 steps before partly recovering. We reran XL at LR $= 10^{-3}$ and got val loss 1.1847, which is what we report in Table~\ref{tab:sp_models}. This kind of LR sensitivity at larger scales is exactly what $\mu$P (Section~\ref{sec:mup}) is designed to fix.
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.96\linewidth]{sp_training_curves.png}
+  \includegraphics[width=0.80\linewidth]{sp_training_curves.png}
   \caption{Training loss (left) and validation loss (right) for all five
            SP models over one epoch. Larger models converge to lower loss
            throughout training. XL uses LR $= 10^{-3}$; all others use
@@ -396,29 +377,8 @@ We implement $\mu$P using the \texttt{mup} Python package in
 \subsection{Learning Rate Sweep under $\mu$P}
 
 Under $\mu$P, an optimal nominal LR found on the Tiny model should transfer
-to all wider models. We swept 10 values from $10^{-5}$ to $3 \times 10^{-1}$:
-
-\begin{table}[H]
-\centering
-\caption{$\mu$P learning rate sweep on Tiny model (sweep fraction = 0.20).}
-\label{tab:mup_lr_sweep}
-\begin{tabular}{cc}
-\toprule
-Learning rate & Val loss \\
-\midrule
-$1 \times 10^{-5}$ & 6.4868 \\
-$3 \times 10^{-5}$ & 6.1460 \\
-$1 \times 10^{-4}$ & 5.4299 \\
-$3 \times 10^{-4}$ & 3.9484 \\
-$1 \times 10^{-3}$ & 2.8408 \\
-$3 \times 10^{-3}$ & 2.4541 \\
-$\mathbf{1 \times 10^{-2}}$ & $\mathbf{2.2587}$ \\
-$3 \times 10^{-2}$ & 2.5044 \\
-$1 \times 10^{-1}$ & 2.4843 \\
-$3 \times 10^{-1}$ & 2.7440 \\
-\bottomrule
-\end{tabular}
-\end{table}
+to all wider models. We swept 10 values from $10^{-5}$ to $3 \times 10^{-1}$
+(full results in Table~\ref{tab:mup_lr_sweep}).
 
 The optimal $\mu$P nominal LR is $\eta^* = 10^{-2}$, forming a clear
 valley (Figure~\ref{fig:mup_lr_sweep}). The curve turns upward immediately
@@ -427,7 +387,7 @@ the search range.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.65\linewidth]{mup_lr_sweep.png}
+  \includegraphics[width=0.50\linewidth]{mup_lr_sweep.png}
   \caption{$\mu$P learning rate sweep on Tiny model. Optimal LR is
   $10^{-2}$; all values $> 10^{-2}$ diverge or degrade.}
   \label{fig:mup_lr_sweep}
@@ -462,7 +422,7 @@ $\mu$P losses use nominal LR $= 10^{-2}$ across all sizes.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.65\linewidth]{sp_vs_mup_scaling.png}
+  \includegraphics[width=0.54\linewidth]{sp_vs_mup_scaling.png}
   \caption{SP vs.\ $\mu$P scaling curves. $\mu$P follows a non-monotonic
   trajectory, with XL performing worse than Large.}
   \label{fig:sp_vs_mup}
@@ -473,22 +433,7 @@ The non-monotonic $\mu$P result, XL doing \emph{worse} than Large was the most u
 
 MuAdamW scales the effective per-hidden-layer learning rate by
 $\eta_\text{eff} = \eta_\text{nominal} \times (d_\text{base}/d_\text{model})$
-where $d_\text{base} = 64$ is the base model width. For our nominal LR
-$= 10^{-2}$:
-
-\begin{center}
-\begin{tabular}{lrr}
-\toprule
-Model & $d_\text{model}$ & Effective LR \\
-\midrule
-Tiny   & 128 & $5.00 \times 10^{-3}$ \\
-Small  & 192 & $3.33 \times 10^{-3}$ \\
-Medium & 384 & $1.67 \times 10^{-3}$ \\
-Large  & 512 & $1.25 \times 10^{-3}$ \\
-XL     & 768 & $0.83 \times 10^{-3}$ \\
-\bottomrule
-\end{tabular}
-\end{center}
+where $d_\text{base} = 64$ is the base model width. For our nominal LR $= 10^{-2}$, the effective LRs are: $5.00 \times 10^{-3}$ (Tiny, $d{=}128$), $3.33 \times 10^{-3}$ (Small), $1.67 \times 10^{-3}$ (Medium), $1.25 \times 10^{-3}$ (Large), and $0.83 \times 10^{-3}$ (XL, $d{=}768$) — see Table~\ref{tab:mup_eff_lr} for the full breakdown.
 
 At Tiny, $\eta_\text{eff} = 5 \times 10^{-3} > \eta_\text{SP} = 3 \times 10^{-3}$, so $\mu$P trains faster and wins. By Medium, $\eta_\text{eff} = 1.67 \times 10^{-3}$ is already $1.8\times$ smaller than SP's LR, which causes undertraining. At XL, $\eta_\text{eff} = 0.83 \times 10^{-3}$ is $3.6\times$ below SP, and the XL $\mu$P model barely improves on Large even though it has $2.6\times$ more parameters.
 
@@ -515,7 +460,7 @@ For extended training, we ran Large for three full epochs (4,656 gradient steps 
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.65\linewidth]{large_extended_training_curve.png}
+  \includegraphics[width=0.54\linewidth]{large_extended_training_curve.png}
   \caption{Training and validation loss for the Large model over 3 epochs.
   Val loss decreases from 1.154 (end of epoch 1) to 0.954 (end of epoch 3).}
   \label{fig:extended_curve}
@@ -588,7 +533,7 @@ can recover unclosed XML attribute values.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.95\linewidth]{generated_grid.png}
+  \includegraphics[width=0.72\linewidth]{generated_grid.png}
   \caption{Grid of generated SVG samples rendered as PNG. Top row:
   unconditional samples at $T = 0.5$ (leftmost) through $T = 1.0$ (rightmost).
   Bottom rows: additional unconditional and prefix-conditioned samples.}
@@ -607,6 +552,71 @@ Three of five prefix-conditioned samples were XML-valid and renderable (60\% vs.
 The mean length of 1,393 characters (before post-processing) is about 345 SentencePiece tokens, comfortably under the 400-token budget. That means most generations ended via EOS on their own instead of getting cut off, which is a good sign that the model actually learned document-level structure.
 
 % -----------------------------------------------------------------------
+\section{Discussion and Conclusion}
+\label{sec:conclusion}
+
+\textbf{Scaling law.}
+The SVG scaling exponent $\alpha = 0.478$ is $6.3\times$ bigger than Kaplan et al.'s natural-language exponent ($\alpha_\text{NL} = 0.076$), which makes sense given how much more regular SVG is. Larger models can pick up on the repeated patterns in SVG (path commands, attribute structures, coordinate repetition) really effectively, so loss drops fast as you scale. The irreducible floor $c = 1.085$ lines up with how hard it is to predict the last digit of one-decimal float coordinates.
+
+\textbf{$\mu$P transferability.}
+The $\mu$P results were the most surprising part of the project. It worked at Tiny scale but lost to SP at every size after that, giving us a non-monotonic curve. We think the issue is that our base width ($d_\text{base} = 64$) was too small compared to the target widths, so MuAdamW shrinks the effective LR too aggressively as the models get bigger. SP just happened to land on LR $= 3 \times 10^{-3}$, which works well across all five widths, so the problem $\mu$P is meant to solve didn't really show up here. With a wider base ($d_\text{base} = 256$ or more), or in a setting where SP actually needs per-size retuning, $\mu$P would probably look better. We didn't have the compute or time to confirm that.
+
+\textbf{Generation quality.}
+Getting to 86.7\% XML validity took way longer than expected — the first working generation hit 0\% valid SVGs, and each fix (tokenizer swap, EOS suppression, post-processing) added roughly 30 points. The final result feels like a real win for a from-scratch model at this scale: the icons actually look like icons, follow proper XML, and render fine in CairoSVG and browsers.
+
+\textbf{Limitations.}
+We only scaled along one axis (parameter count) with a fixed one-epoch budget ($\sim$101M tokens). Ideally we'd train each model to convergence, but the GPU time wasn't there. Five data points also isn't enough for a really tight power-law fit — the confidence interval on $a$ spans orders of magnitude. The $\mu$P comparison is muddled by our base-width choice, which we couldn't ablate. And the generation eval is only 15 samples, which is enough for a rough validity number but not for any real claims about diversity or quality.
+
+\textbf{What I would do differently.}
+If I were starting over, I'd give more time to Part 3 — the $\mu$P implementation ate more hours than expected and still gave results we can't fully explain. I'd also run the LR sweep on at least two model sizes instead of just Tiny, to actually check whether the optimal LR transfers.
+
+\textbf{Future directions.}
+The biggest win would be training toward Chinchilla compute-optimal scale ($\sim$650M tokens for the 32.5M Large model). After that, a longer generation budget (600–800 tokens) would let more complex SVGs finish on their own.
+
+% -----------------------------------------------------------------------
+\begin{thebibliography}{9}
+
+\bibitem{kaplan2020scaling}
+  J.\ Kaplan, S.\ McCandlish, T.\ Henighan, T.\ B.\ Brown, B.\ Chess,
+  R.\ Child, S.\ Gray, A.\ Radford, J.\ Wu, D.\ Amodei.
+  \textit{Scaling Laws for Neural Language Models}.
+  arXiv:2001.08361, 2020.
+
+\bibitem{hoffmann2022chinchilla}
+  J.\ Hoffmann, S.\ Borgeaud, A.\ Mensch, E.\ Buchatskaya, T.\ Cai,
+  E.\ Rutherford, D.\ de Las Casas, L.\ A.\ Hendricks, J.\ Welbl, A.\ Clark,
+  et al.
+  \textit{Training Compute-Optimal Large Language Models}.
+  arXiv:2203.15556, 2022.
+
+\bibitem{yang2022mup}
+  G.\ Yang, E.\ Hu, I.\ Babuschkin, S.\ Sidor, X.\ Liu, D.\ Farhi,
+  N.\ Ryder, J.\ Pachocki, W.\ Chen, J.\ Gao.
+  \textit{Tensor Programs V: Tuning Large Neural Networks via Zero-Shot
+  Hyperparameter Transfer}.
+  arXiv:2203.03466, 2022.
+
+\bibitem{brown2020gpt3}
+  T.\ B.\ Brown, B.\ Mann, N.\ Ryder, M.\ Subbiah, J.\ Kaplan, P.\ Dhariwal,
+  A.\ Neelakantan, P.\ Shyam, G.\ Sastry, A.\ Amodei, et al.
+  \textit{Language Models are Few-Shot Learners}.
+  arXiv:2005.14165, 2020.
+
+\bibitem{radford2019gpt2}
+  A.\ Radford, J.\ Wu, R.\ Child, D.\ Luan, D.\ Amodei, I.\ Sutskever.
+  \textit{Language Models are Unsupervised Multitask Learners}.
+  OpenAI Blog, 2019.
+
+\bibitem{karpathy2022nanogpt}
+  A.\ Karpathy.
+  \textit{nanoGPT: The simplest, fastest repository for training/finetuning
+  medium-sized GPTs}.
+  GitHub, 2022. \url{https://github.com/karpathy/nanoGPT}
+
+\end{thebibliography}
+
+% -----------------------------------------------------------------------
+\appendix
 \section{Engineering Challenges}
 \label{sec:challenges}
 
@@ -656,29 +666,76 @@ larger gradient norms. Re-running at LR $= 10^{-3}$ brought XL down to
 1.1847 and restored rough monotonicity in the scaling curve.
 
 % -----------------------------------------------------------------------
-\section{Discussion and Conclusion}
-\label{sec:conclusion}
+\section{Learning Rate Sweep Data}
+\label{app:lr_sweep}
 
-\textbf{Scaling law.}
-The SVG scaling exponent $\alpha = 0.478$ is $6.3\times$ bigger than Kaplan et al.'s natural-language exponent ($\alpha_\text{NL} = 0.076$), which makes sense given how much more regular SVG is. Larger models can pick up on the repeated patterns in SVG (path commands, attribute structures, coordinate repetition) really effectively, so loss drops fast as you scale. The irreducible floor $c = 1.085$ lines up with how hard it is to predict the last digit of one-decimal float coordinates.
+\begin{table}[H]
+\centering
+\caption{SP learning rate sweep on Tiny model (sweep fraction = 0.20).}
+\label{tab:lr_sweep}
+\begin{tabular}{cc}
+\toprule
+Learning rate & Val loss \\
+\midrule
+$1 \times 10^{-5}$ & 6.0661 \\
+$3 \times 10^{-5}$ & 5.4399 \\
+$1 \times 10^{-4}$ & 4.2819 \\
+$3 \times 10^{-4}$ & 3.0435 \\
+$1 \times 10^{-3}$ & 2.6896 \\
+$\mathbf{3 \times 10^{-3}}$ & $\mathbf{2.3214}$ \\
+$1 \times 10^{-2}$ & 2.3567 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\textbf{$\mu$P transferability.}
-The $\mu$P results were the most surprising part of the project. It worked at Tiny scale but lost to SP at every size after that, giving us a non-monotonic curve. We think the issue is that our base width ($d_\text{base} = 64$) was too small compared to the target widths, so MuAdamW shrinks the effective LR too aggressively as the models get bigger. SP just happened to land on LR $= 3 \times 10^{-3}$, which works well across all five widths, so the problem $\mu$P is meant to solve didn't really show up here. With a wider base ($d_\text{base} = 256$ or more), or in a setting where SP actually needs per-size retuning, $\mu$P would probably look better. We didn't have the compute or time to confirm that.
-
-\textbf{Generation quality.}
-Getting to 86.7\% XML validity took way longer than expected — the first working generation hit 0\% valid SVGs, and each fix (tokenizer swap, EOS suppression, post-processing) added roughly 30 points. The final result feels like a real win for a from-scratch model at this scale: the icons actually look like icons, follow proper XML, and render fine in CairoSVG and browsers.
-
-\textbf{Limitations.}
-We only scaled along one axis (parameter count) with a fixed one-epoch budget ($\sim$101M tokens). Ideally we'd train each model to convergence, but the GPU time wasn't there. Five data points also isn't enough for a really tight power-law fit — the confidence interval on $a$ spans orders of magnitude. The $\mu$P comparison is muddled by our base-width choice, which we couldn't ablate. And the generation eval is only 15 samples, which is enough for a rough validity number but not for any real claims about diversity or quality.
-
-\textbf{What I would do differently.}
-If I were starting over, I'd give more time to Part 3 — the $\mu$P implementation ate more hours than expected and still gave results we can't fully explain. I'd also run the LR sweep on at least two model sizes instead of just Tiny, to actually check whether the optimal LR transfers.
-
-\textbf{Future directions.}
-The biggest win would be training toward Chinchilla compute-optimal scale ($\sim$650M tokens for the 32.5M Large model). After that, a longer generation budget (600–800 tokens) would let more complex SVGs finish on their own.
+\begin{table}[H]
+\centering
+\caption{$\mu$P learning rate sweep on Tiny model (sweep fraction = 0.20).}
+\label{tab:mup_lr_sweep}
+\begin{tabular}{cc}
+\toprule
+Learning rate & Val loss \\
+\midrule
+$1 \times 10^{-5}$ & 6.4868 \\
+$3 \times 10^{-5}$ & 6.1460 \\
+$1 \times 10^{-4}$ & 5.4299 \\
+$3 \times 10^{-4}$ & 3.9484 \\
+$1 \times 10^{-3}$ & 2.8408 \\
+$3 \times 10^{-3}$ & 2.4541 \\
+$\mathbf{1 \times 10^{-2}}$ & $\mathbf{2.2587}$ \\
+$3 \times 10^{-2}$ & 2.5044 \\
+$1 \times 10^{-1}$ & 2.4843 \\
+$3 \times 10^{-1}$ & 2.7440 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 % -----------------------------------------------------------------------
-\section*{Reproducibility}
+\section{$\mu$P Effective Learning Rates per Model Size}
+\label{app:mup_eff_lr}
+
+\begin{table}[H]
+\centering
+\caption{Effective per-hidden-layer LR under MuAdamW for nominal LR $= 10^{-2}$,
+         $d_\text{base} = 64$.
+         $\eta_\text{eff} = \eta_\text{nominal} \times (d_\text{base}/d_\text{model})$.}
+\label{tab:mup_eff_lr}
+\begin{tabular}{lrr}
+\toprule
+Model & $d_\text{model}$ & Effective LR \\
+\midrule
+Tiny   & 128 & $5.00 \times 10^{-3}$ \\
+Small  & 192 & $3.33 \times 10^{-3}$ \\
+Medium & 384 & $1.67 \times 10^{-3}$ \\
+Large  & 512 & $1.25 \times 10^{-3}$ \\
+XL     & 768 & $0.83 \times 10^{-3}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% -----------------------------------------------------------------------
+\section{Reproducibility}
+\label{app:repro}
 
 All code, configurations, and result files are available in the project
 repository. Key paths:
@@ -696,47 +753,5 @@ repository. Key paths:
     (figures), \texttt{outputs/generated/} (SVG), \texttt{outputs/generated\_png/}
     (rendered PNGs)
 \end{itemize}
-
-% -----------------------------------------------------------------------
-\begin{thebibliography}{9}
-
-\bibitem{kaplan2020scaling}
-  J.\ Kaplan, S.\ McCandlish, T.\ Henighan, T.\ B.\ Brown, B.\ Chess,
-  R.\ Child, S.\ Gray, A.\ Radford, J.\ Wu, D.\ Amodei.
-  \textit{Scaling Laws for Neural Language Models}.
-  arXiv:2001.08361, 2020.
-
-\bibitem{hoffmann2022chinchilla}
-  J.\ Hoffmann, S.\ Borgeaud, A.\ Mensch, E.\ Buchatskaya, T.\ Cai,
-  E.\ Rutherford, D.\ de Las Casas, L.\ A.\ Hendricks, J.\ Welbl, A.\ Clark,
-  et al.
-  \textit{Training Compute-Optimal Large Language Models}.
-  arXiv:2203.15556, 2022.
-
-\bibitem{yang2022mup}
-  G.\ Yang, E.\ Hu, I.\ Babuschkin, S.\ Sidor, X.\ Liu, D.\ Farhi,
-  N.\ Ryder, J.\ Pachocki, W.\ Chen, J.\ Gao.
-  \textit{Tensor Programs V: Tuning Large Neural Networks via Zero-Shot
-  Hyperparameter Transfer}.
-  arXiv:2203.03466, 2022.
-
-\bibitem{brown2020gpt3}
-  T.\ B.\ Brown, B.\ Mann, N.\ Ryder, M.\ Subbiah, J.\ Kaplan, P.\ Dhariwal,
-  A.\ Neelakantan, P.\ Shyam, G.\ Sastry, A.\ Amodei, et al.
-  \textit{Language Models are Few-Shot Learners}.
-  arXiv:2005.14165, 2020.
-
-\bibitem{radford2019gpt2}
-  A.\ Radford, J.\ Wu, R.\ Child, D.\ Luan, D.\ Amodei, I.\ Sutskever.
-  \textit{Language Models are Unsupervised Multitask Learners}.
-  OpenAI Blog, 2019.
-
-\bibitem{karpathy2022nanogpt}
-  A.\ Karpathy.
-  \textit{nanoGPT: The simplest, fastest repository for training/finetuning
-  medium-sized GPTs}.
-  GitHub, 2022. \url{https://github.com/karpathy/nanoGPT}
-
-\end{thebibliography}
 
 \end{document}
